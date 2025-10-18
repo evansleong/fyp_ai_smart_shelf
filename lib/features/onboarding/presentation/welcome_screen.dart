@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../registration/presentation/register_screen.dart';
+import '../../../core/widgets/camera_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -53,6 +54,39 @@ class WelcomeScreen extends StatelessWidget {
                     );
                   },
                   child: const Text('Register'),
+                ),
+              ),
+              const SizedBox(height: 24), // Added some spacing
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Scan Shelf QR'),
+                  onPressed: () async {
+                    // Navigate to the reusable CameraScreen with QR Code mode
+                    final qrCodeResult =
+                        await Navigator.of(context).push<String>(
+                      MaterialPageRoute(
+                        builder: (_) => const CameraScreen(
+                          scanMode: CameraScanMode.qrCode,
+                        ),
+                      ),
+                    );
+
+                    // You can now use the scanned QR code result
+                    if (qrCodeResult != null && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                            content: Text('Scanned Shelf ID: $qrCodeResult')),
+                      );
+                      // TODO: Navigate to the shelf details screen with this ID
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.secondary,
+                    foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  ),
                 ),
               ),
             ],

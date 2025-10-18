@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/ocr_service.dart';
-import 'camera_screen.dart';
+import '../../../core/widgets/camera_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -10,33 +10,70 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
+  // A key to identify and validate our form
+  final _formKey = GlobalKey<FormState>();
+
+  // Services and state management
   final OcrService _ocrService = OcrService();
   bool _isScanning = false;
-  Map<String, String>? _extractedData;
+
+  // Controllers to manage the text in each input field
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _icController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+
+  // State variables for the dropdown menus
+  String? _selectedGender;
+  String? _selectedReligion;
+
+  @override
+  void dispose() {
+    // Clean up the controllers when the widget is removed from the tree
+    _nameController.dispose();
+    _icController.dispose();
+    _addressController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
 
   Future<void> _startScan() async {
-    // 1. Navigate to the CameraScreen and wait for a result
+    // 1. Navigate to the CameraScreen and wait for an image path
     final String? imagePath = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CameraScreen()),
+      MaterialPageRoute(
+          builder: (_) => const CameraScreen(
+                scanMode: CameraScanMode.ocr,
+              )),
     );
 
-    // 2. Check if we got an image path back
+    // 2. Return if no image was captured
     if (imagePath == null) return;
 
     setState(() {
       _isScanning = true;
-      _extractedData = null;
     });
 
     try {
-      // The service now returns a map, let's call it 'data'
+      // 3. Call the OCR service to extract data
       final data = await _ocrService.scanIcCard(imagePath);
       if (!mounted) return;
 
+      // 4. If data is extracted, populate the form fields
       if (data != null && data.isNotEmpty) {
         setState(() {
-          _extractedData = data;
+          _nameController.text = data['name'] ?? '';
+          _icController.text = data['nric'] ?? '';
+          _addressController.text = data['address'] ?? '';
+          _selectedGender = data['gender'];
+          _selectedReligion = data['religion'];
         });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Details extracted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -52,7 +89,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       );
     } finally {
-      // Ensure the loading indicator is always turned off
+      // 5. Always stop the loading indicator
       if (mounted) {
         setState(() {
           _isScanning = false;
@@ -61,99 +98,191 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Register')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isScanning ? null : _startScan,
-                    icon: const Icon(Icons.credit_card),
-                    label: const Text('Scan IC Card'),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                if (_isScanning) const CircularProgressIndicator(),
-                if (_extractedData != null) ...[
-                  const SizedBox(height: 24),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      border: Border.all(color: Colors.green),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildExtractedInfo(
-                          context,
-                          icon: Icons.badge,
-                          label: 'IC Number (NRIC)',
-                          value: _extractedData!['nric'] ?? 'N/A',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildExtractedInfo(
-                          context,
-                          icon: Icons.person,
-                          label: 'Extracted Name',
-                          value: _extractedData!['name'] ?? 'N/A',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildExtractedInfo(
-                          context,
-                          icon: Icons.home,
-                          label: 'Extracted Address',
-                          value: _extractedData!['address'] ?? 'N/A',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
+  void _submitRegistration() {
+    // Validate all form fields
+    if (_formKey.currentState!.validate()) {
+      // If the form is valid, you can proceed with the registration logic
+      print('Form is valid!');
+      print('Name: ${_nameController.text}');
+      print('IC: ${_icController.text}');
+      print('Gender: $_selectedGender');
+      print('Address: ${_addressController.text}');
+      print('Religion: $_selectedReligion');
+      print('Phone: ${_phoneController.text}');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Processing Registration...')),
+      );
+    }
+  }
+
+  // --- UI HELPER METHODS ---
+
+  Widget _buildPersonalDetailsCard() {
+    // Style for disabled fields to make them look locked
+    final disabledFillColor = Colors.grey.shade200;
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Personal Details',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _nameController,
+              enabled: false,
+              decoration: InputDecoration(
+                labelText: 'Full Name',
+                prefixIcon: const Icon(Icons.person_outline),
+                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: disabledFillColor,
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _icController,
+              enabled: false,
+              decoration: InputDecoration(
+                labelText: 'IC Number (NRIC)',
+                prefixIcon: const Icon(Icons.badge_outlined),
+                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: disabledFillColor,
+              ),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedGender,
+              decoration: InputDecoration(
+                labelText: 'Gender',
+                prefixIcon: const Icon(Icons.wc_outlined),
+                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: disabledFillColor,
+              ),
+              items: ['Male', 'Female', 'Other']
+                  .map((label) =>
+                      DropdownMenuItem(value: label, child: Text(label)))
+                  .toList(),
+              onChanged: null,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedReligion,
+              decoration: InputDecoration(
+                labelText: 'Religion',
+                prefixIcon: const Icon(Icons.mosque_outlined),
+                border: const OutlineInputBorder(),
+                filled: true,
+                fillColor: disabledFillColor,
+              ),
+              items: ['Muslim', 'Non-Muslim']
+                  .map((label) =>
+                      DropdownMenuItem(value: label, child: Text(label)))
+                  .toList(),
+              onChanged: null,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildExtractedInfo(BuildContext context,
-      {required IconData icon, required String label, required String value}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: Colors.green.shade700),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.green.shade800,
-                      fontWeight: FontWeight.w600,
-                    ),
+  Widget _buildContactDetailsCard() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Contact Information',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _addressController,
+              decoration: const InputDecoration(
+                labelText: 'Address',
+                prefixIcon: Icon(Icons.home_outlined),
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: Theme.of(context).textTheme.titleLarge,
+              maxLines: 3,
+              validator: (value) =>
+                  value!.isEmpty ? 'Please enter an address' : null,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _phoneController,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number',
+                prefixIcon: Icon(Icons.phone_outlined),
+                border: OutlineInputBorder(),
               ),
-            ],
+              keyboardType: TextInputType.phone,
+              validator: (value) =>
+                  value!.isEmpty ? 'Please enter a phone number' : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Create Account')),
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // --- Scan IC Button ---
+                ElevatedButton.icon(
+                  onPressed: _isScanning ? null : _startScan,
+                  icon: const Icon(Icons.scanner),
+                  label: const Text('Scan IC to Autofill'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+                if (_isScanning)
+                  const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                const SizedBox(height: 16),
+
+                // --- Form Sections ---
+                _buildPersonalDetailsCard(),
+                const SizedBox(height: 16),
+                _buildContactDetailsCard(),
+                const SizedBox(height: 32),
+
+                // --- Register Button ---
+                FilledButton(
+                  onPressed: _submitRegistration,
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text(
+                    'Register Account',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 }

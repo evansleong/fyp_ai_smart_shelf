@@ -1,8 +1,7 @@
-// lib/core/services/ocr_service.dart
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 class OcrService {
-  Future<Map<String, String>?> scanIcCard(String imagePath) async {
+  Future<Map<String, String?>?> scanIcCard(String imagePath) async {
     final inputImage = InputImage.fromFilePath(imagePath);
     final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     final RecognizedText recognizedText = await textRecognizer.processImage(inputImage);
@@ -14,27 +13,43 @@ class OcrService {
     String? extractedNric;
     String? extractedName;
     String extractedAddress = '';
+    String? extractedGender;
+    String extractedReligion = 'Non-Muslim'; // Default to Non-Muslim
 
-    // More robust RegEx patterns for Malaysian IC
     final nricPattern = RegExp(r'\d{6}-\d{2}-\d{4}');
-    final namePattern = RegExp(r"^([A-ZÀ-ÖØ-öø-ÿ\s'-]+ ){1,}[A-ZÀ-ÖØ-öø-ÿ\s'-]+$");
+    // This simplified name pattern can be more reliable than complex regex for OCR text
+    final namePattern = RegExp(r'^[A-Z\s]{5,}$');
     final addressPattern = RegExp(r'\d{5}|\b(JALAN|JLN|TAMAN|TMN|LORONG|LRG|KAMPUNG|KG)\b', caseSensitive: false);
 
     bool addressStarted = false;
     for (final line in lines) {
-        final currentLine = line.trim().replaceAll(' ', ''); // Remove spaces for NRIC matching
-        final originalLine = line.trim(); // Keep original for other matches
-
+        final originalLine = line.trim();
         if (originalLine.isEmpty) continue;
 
+        // Use a case-insensitive version for keyword matching
+        final upperCaseLine = originalLine.toUpperCase();
+
         // Find and capture the NRIC
-        if (nricPattern.hasMatch(currentLine) && extractedNric == null) {
+        if (nricPattern.hasMatch(originalLine.replaceAll(' ', '')) && extractedNric == null) {
             extractedNric = originalLine.replaceAll(' ', '');
             continue;
         }
 
-        // Find the name using the more robust pattern
-        if (namePattern.hasMatch(originalLine) && extractedName == null) {
+        // --- NEW LOGIC: Detect Gender and Religion ---
+        if (upperCaseLine.contains('PEREMPUAN')) {
+          extractedGender = 'Female';
+        } else if (upperCaseLine.contains('LELAKI')) {
+          extractedGender = 'Male';
+        }
+
+        if (upperCaseLine.contains('ISLAM')) {
+          extractedReligion = 'Muslim';
+        }
+        // --- END NEW LOGIC ---
+
+        // Find the name (often in all caps)
+        // Let's refine this: A name usually doesn't have address keywords.
+        if (namePattern.hasMatch(upperCaseLine) && !addressPattern.hasMatch(upperCaseLine) && extractedName == null && extractedNric != null) {
             extractedName = originalLine;
             // Once the name is found, we assume the next lines are the address
             addressStarted = true;
@@ -42,13 +57,13 @@ class OcrService {
         }
         
         // If we've found the name or the line looks like an address, append it
-        if (addressStarted || addressPattern.hasMatch(originalLine)) {
+        if (addressStarted || (addressPattern.hasMatch(originalLine) && extractedName != null)) {
             extractedAddress += '$originalLine ';
         }
     }
 
-    // Ensure we found all the necessary data
-    if (extractedNric == null || extractedName == null || extractedAddress.trim().isEmpty) {
+    // Ensure we found at least the critical data
+    if (extractedNric == null || extractedName == null) {
       return null;
     }
 
@@ -56,6 +71,8 @@ class OcrService {
       'nric': extractedNric,
       'name': extractedName,
       'address': extractedAddress.trim(),
+      'gender': extractedGender,      // Return the detected gender
+      'religion': extractedReligion,  // Return the detected religion
     };
   }
 }
