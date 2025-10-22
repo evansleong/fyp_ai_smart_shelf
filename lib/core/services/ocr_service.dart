@@ -12,16 +12,12 @@ class OcrService {
 
     String? extractedNric;
     String? extractedName;
-    String extractedAddress = '';
     String? extractedGender;
     String extractedReligion = 'Non-Muslim'; // Default to Non-Muslim
 
     final nricPattern = RegExp(r'\d{6}-\d{2}-\d{4}');
-    // This simplified name pattern can be more reliable than complex regex for OCR text
     final namePattern = RegExp(r'^[A-Z\s]{5,}$');
-    final addressPattern = RegExp(r'\d{5}|\b(JALAN|JLN|TAMAN|TMN|LORONG|LRG|KAMPUNG|KG)\b', caseSensitive: false);
 
-    bool addressStarted = false;
     for (final line in lines) {
         final originalLine = line.trim();
         if (originalLine.isEmpty) continue;
@@ -49,17 +45,11 @@ class OcrService {
 
         // Find the name (often in all caps)
         // Let's refine this: A name usually doesn't have address keywords.
-        if (namePattern.hasMatch(upperCaseLine) && !addressPattern.hasMatch(upperCaseLine) && extractedName == null && extractedNric != null) {
+        if (namePattern.hasMatch(upperCaseLine) && extractedName == null && extractedNric != null) {
             extractedName = originalLine;
-            // Once the name is found, we assume the next lines are the address
-            addressStarted = true;
             continue;
         }
         
-        // If we've found the name or the line looks like an address, append it
-        if (addressStarted || (addressPattern.hasMatch(originalLine) && extractedName != null)) {
-            extractedAddress += '$originalLine ';
-        }
     }
 
     // Ensure we found at least the critical data
@@ -70,7 +60,6 @@ class OcrService {
     return {
       'nric': extractedNric,
       'name': extractedName,
-      'address': extractedAddress.trim(),
       'gender': extractedGender,      // Return the detected gender
       'religion': extractedReligion,  // Return the detected religion
     };

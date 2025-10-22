@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../registration/presentation/register_screen.dart';
-import '../../../core/widgets/camera_screen.dart';
+import 'register_screen.dart';
+import '../core/widgets/camera_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
