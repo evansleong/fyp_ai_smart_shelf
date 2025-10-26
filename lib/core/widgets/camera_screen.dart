@@ -7,7 +7,8 @@ import 'package:permission_handler/permission_handler.dart';
 // Enum to define the purpose of the camera scanner
 enum CameraScanMode {
   qrCode, // For scanning QR codes
-  ocr,    // For taking a picture for Text Recognition (IC)
+  ocr, // For taking a picture for Text Recognition (IC)
+  face, // For capturing a user's face 
 }
 
 class CameraScreen extends StatefulWidget {
@@ -24,9 +25,9 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen> {
-  // Controller for manual camera operations (used for OCR)
-  CameraController? _ocrCameraController;
-  bool _isOcrCameraInitialized = false;
+  // Controller for manual camera operations (used for OCR and Face)
+  CameraController? _manualCameraController;
+  bool _isManualCameraInitialized = false;
   bool _isPermissionGranted = false;
 
   // Controller for QR code scanning
@@ -34,12 +35,11 @@ class _CameraScreenState extends State<CameraScreen> {
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
   );
-  
+
   // To prevent multiple pops when a QR code is detected
   bool _isProcessing = false;
 
   @override
-
   void initState() {
     super.initState();
     _requestCameraPermission();
@@ -50,41 +50,61 @@ class _CameraScreenState extends State<CameraScreen> {
     setState(() {
       _isPermissionGranted = status.isGranted;
       if (_isPermissionGranted) {
-        // If mode is OCR, initialize the manual camera controller
-        if (widget.scanMode == CameraScanMode.ocr) {
-          _initializeOcrCamera();
+        // --- MODIFIED: Initialize manual camera for OCR or Face mode ---
+        if (widget.scanMode == CameraScanMode.ocr ||
+            widget.scanMode == CameraScanMode.face) {
+          _initializeManualCamera();
         }
       }
     });
   }
 
-  // --- OCR Specific Methods ---
-  Future<void> _initializeOcrCamera() async {
+  // --- MODIFIED: OCR/Face Specific Methods ---
+  Future<void> _initializeManualCamera() async {
     final cameras = await availableCameras();
-    if (cameras.isNotEmpty) {
-      _ocrCameraController = CameraController(cameras[0], ResolutionPreset.high);
-      await _ocrCameraController!.initialize();
-      if (!mounted) return;
-      setState(() {
-        _isOcrCameraInitialized = true;
-      });
+    if (cameras.isEmpty) return;
+
+    // --- NEW: Select FRONT camera for face, BACK camera for OCR ---
+    CameraDescription selectedCamera;
+    if (widget.scanMode == CameraScanMode.face) {
+      // Find the front-facing camera
+      selectedCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.front,
+        orElse: () => cameras.first, // Fallback to first camera
+      );
+    } else {
+      // Find the back-facing camera
+      selectedCamera = cameras.firstWhere(
+        (camera) => camera.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first, // Fallback to first camera
+      );
     }
+
+    _manualCameraController = CameraController(
+      selectedCamera,
+      ResolutionPreset.high,
+      enableAudio: false, // Audio is not needed
+    );
+
+    await _manualCameraController!.initialize();
+    if (!mounted) return;
+    setState(() {
+      _isManualCameraInitialized = true;
+    });
   }
 
   Future<void> _onCapturePressed() async {
-    if (_ocrCameraController == null || !_ocrCameraController!.value.isInitialized) {
+    if (_manualCameraController == null ||
+        !_manualCameraController!.value.isInitialized) {
       return;
     }
     try {
       // Take the picture
-      final image = await _ocrCameraController!.takePicture();
+      final image = await _manualCameraController!.takePicture();
       if (!mounted) return;
-      
-      // For OCR, you would now process this image with ML Kit.
-      // After processing, you pop with the extracted text.
-      // For now, we just pop with the path.
-      Navigator.of(context).pop(image.path);
 
+      // Pop with the image path. This works for both OCR and Face mode.
+      Navigator.of(context).pop(image.path);
     } catch (e) {
       // Handle error
       debugPrint("Error taking picture: $e");
@@ -93,7 +113,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
-    _ocrCameraController?.dispose();
+    _manualCameraController?.dispose();
     _qrScannerController.dispose();
     super.dispose();
   }
@@ -104,12 +124,17 @@ class _CameraScreenState extends State<CameraScreen> {
       return _buildPermissionDeniedScreen();
     }
 
+    // --- NEW: Determine app bar title based on all 3 modes ---
+    final String title = widget.scanMode == CameraScanMode.qrCode
+        ? 'Scan Shelf QR Code'
+        : (widget.scanMode == CameraScanMode.ocr
+            ? 'Scan Your IC'
+            : 'Capture Your Face');
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.scanMode == CameraScanMode.qrCode
-            ? 'Scan Shelf QR Code'
-            : 'Scan Your IC'),
+        title: Text(title),
         backgroundColor: Colors.black.withOpacity(0.5),
         elevation: 0,
       ),
@@ -119,11 +144,12 @@ class _CameraScreenState extends State<CameraScreen> {
           // Conditionally build the scanner based on the mode
           _buildScanner(),
 
-          // Guide box overlay (useful for both modes)
+          // Guide box overlay (useful for all modes)
           _buildGuideBox(),
-          
-          // Show capture button only for OCR mode
-          if (widget.scanMode == CameraScanMode.ocr)
+
+          // --- MODIFIED: Show capture button for OCR *or* Face mode ---
+          if (widget.scanMode == CameraScanMode.ocr ||
+              widget.scanMode == CameraScanMode.face)
             Positioned(
               bottom: 50,
               child: FloatingActionButton(
@@ -144,10 +170,12 @@ class _CameraScreenState extends State<CameraScreen> {
           controller: _qrScannerController,
           onDetect: (capture) {
             if (_isProcessing) return; // Don't process if already processing
-            
+
             final List<Barcode> barcodes = capture.barcodes;
             if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
-              setState(() { _isProcessing = true; });
+              setState(() {
+                _isProcessing = true;
+              });
               final String code = barcodes.first.rawValue!;
               // Return the scanned code to the previous screen
               Navigator.of(context).pop(code);
@@ -155,30 +183,43 @@ class _CameraScreenState extends State<CameraScreen> {
           },
         );
 
+      // --- MODIFIED: Stack OCR and Face cases, as they do the same thing ---
       case CameraScanMode.ocr:
+      case CameraScanMode.face:
         // Use the manual CameraController for taking a picture
-        if (!_isOcrCameraInitialized) {
+        if (!_isManualCameraInitialized) {
           return const Center(child: CircularProgressIndicator());
         }
         return Center(
-          child: CameraPreview(_ocrCameraController!),
+          child: CameraPreview(_manualCameraController!),
         );
     }
   }
 
   Widget _buildGuideBox() {
-    // Calculate the desired width for the guide box
     final double boxWidth = MediaQuery.of(context).size.width * 0.8;
+    double boxHeight;
+    BorderRadius borderRadius;
+
+    // --- NEW: Custom guide boxes for all 3 modes ---
+    if (widget.scanMode == CameraScanMode.qrCode) {
+      boxHeight = boxWidth; // Square for QR
+      borderRadius = BorderRadius.circular(12);
+    } else if (widget.scanMode == CameraScanMode.ocr) {
+      boxHeight = 220; // Rectangle for IC card
+      borderRadius = BorderRadius.circular(12);
+    } else {
+      // Face mode
+      boxHeight = boxWidth * 1.25; // Portrait oval shape
+      borderRadius = BorderRadius.circular(boxWidth / 1.5); // Make it rounded
+    }
 
     return Container(
       width: boxWidth,
-      // Use a ternary operator to set the height
-      height: widget.scanMode == CameraScanMode.qrCode
-          ? boxWidth // Make it a SQUARE for QR codes
-          : 220,     // Keep it a RECTANGLE for IC cards (OCR)
+      height: boxHeight,
       decoration: BoxDecoration(
         border: Border.all(color: Colors.green, width: 3),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: borderRadius,
       ),
     );
   }

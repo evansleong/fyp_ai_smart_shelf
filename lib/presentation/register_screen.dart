@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/services/ocr_service.dart';
 import '../core/widgets/camera_screen.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -17,6 +20,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Services and state management
   final OcrService _ocrService = OcrService();
   bool _isScanning = false;
+  bool _isRegistering = false;
+
+  String? _faceImagePath; // Local path to the selfie
+  String? _faceImageKey; // Key for the S3 object (e.g., "uploads/123.jpg")
+  bool _isUploadingFace = false; // To show a loading indicator
 
   // Controllers to manage the text in each input field
   final TextEditingController _nameController = TextEditingController();
@@ -111,31 +119,183 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  void _submitRegistration() {
-    // Validate all form fields
-    if (_formKey.currentState!.validate()) {
-      // If the form is valid, you can proceed with the registration logic
-      print('Form is valid!');
-      print('Name: ${_nameController.text}');
-      print('IC: ${_icController.text}');
-      print('Gender: ${_genderController.text}');
-      print('Address Line 1: ${_addressLine1Controller.text}');
-      print('Address Line 2: ${_addressLine2Controller.text}');
-      print('Postcode: ${_postcodeController.text}');
-      print('State: ${_stateController.text}');
-      print('Religion: ${_religionController.text}');
-      print('Phone: ${_phoneController.text}');
+  Future<void> _captureFace() async {
+    // 1. Navigate to CameraScreen for a selfie
+    final String? imagePath = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const CameraScreen(
+          scanMode: CameraScanMode.face, // Assuming you add a 'face' mode
+        ),
+      ),
+    );
 
+    if (imagePath == null || !mounted) return;
+
+    setState(() {
+      _faceImagePath = imagePath;
+      _isUploadingFace = true; // Start loading
+      _faceImageKey = null; // Reset any previous key
+    });
+
+    // 2. Automatically start the upload
+    try {
+      final String objectKey = await _uploadFaceToS3(imagePath);
+
+      setState(() {
+        _faceImageKey = objectKey;
+      });
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Processing Registration...')),
+        const SnackBar(
+          content: Text('Face captured and uploaded!'),
+          backgroundColor: Colors.green,
+        ),
       );
-      // TODO: Add your actual registration API call here
+    } catch (e) {
+      _showErrorDialog('Face Upload Failed', e.toString());
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUploadingFace = false;
+        });
+      }
     }
+  }
+
+  // --- NEW: Method to upload the face to S3 via presigned URL ---
+  Future<String> _uploadFaceToS3(String imagePath) async {
+    // 1. Get the presigned URL from your new Lambda
+    //    (Replace with your API Gateway URL)
+    const String getUrlApi =
+        'https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev/upload-url';
+
+    final getUrlResponse = await http.get(Uri.parse(getUrlApi));
+
+    if (getUrlResponse.statusCode != 200) {
+      throw Exception('Could not get upload URL.');
+    }
+
+    final uploadData = jsonDecode(getUrlResponse.body);
+    final String presignedUrl = uploadData['uploadUrl'];
+    final String objectKey = uploadData['objectKey'];
+
+    // 2. Read the image file as bytes
+    final file = File(imagePath);
+    final bytes = await file.readAsBytes();
+
+    // 3. Upload the image bytes using an HTTP PUT request
+    final uploadResponse = await http.put(
+      Uri.parse(presignedUrl),
+      headers: {
+        'Content-Type': 'image/jpeg',
+      },
+      body: bytes,
+    );
+
+    if (uploadResponse.statusCode == 200) {
+      // Success! Return the S3 key
+      return objectKey;
+    } else {
+      throw Exception('Failed to upload image to S3.');
+    }
+  }
+
+  Future<void> _submitRegistration() async {
+    // 1. Validate all form fields
+    if (!_formKey.currentState!.validate()) {
+      print('Form is invalid!');
+      return; // Don't proceed if form is invalid
+    }
+
+    if (_faceImageKey == null) {
+      _showErrorDialog('Missing Face', 'Please capture your face to register.');
+      return;
+    }
+
+    // 2. Set loading state
+    setState(() {
+      _isRegistering = true;
+    });
+
+    // 3. Define your API Gateway Invoke URL
+    //    (Replace with the URL you got from API Gateway)
+    const String apiUrl =
+        'https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev/register';
+
+    try {
+      // 4. Create the request body (Map)
+      //    Keys MUST match what your Lambda function expects
+      final body = {
+        'name': _nameController.text,
+        'icNumber': _icController.text,
+        'gender': _genderController.text,
+        'religion': _religionController.text,
+        'phone': _phoneController.text,
+        'addressLine1': _addressLine1Controller.text,
+        'addressLine2': _addressLine2Controller.text,
+        'postcode': _postcodeController.text,
+        'state': _stateController.text,
+        'faceImageKey': _faceImageKey,
+      };
+
+      // 5. Send the POST request
+      final response = await http.post(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body), // Encode the Map to a JSON string
+      );
+
+      // 6. Check the response status code
+      if (response.statusCode == 200) {
+        // SUCCESS
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Registration Successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Optionally, clear the form or navigate away
+        // _resetForm();
+        // Navigator.of(context).pop();
+      } else {
+        // FAILURE (e.g., 400, 500)
+        final errorBody = jsonDecode(response.body);
+        _showErrorDialog('Registration Failed',
+            errorBody['error'] ?? 'An unknown error occurred.');
+      }
+    } catch (e) {
+      // NETWORK or OTHER ERROR
+      _showErrorDialog('Connection Error',
+          'Could not connect to the server. Please check your internet connection. $e');
+    } finally {
+      // 7. Stop loading state
+      if (mounted) {
+        setState(() {
+          _isRegistering = false;
+        });
+      }
+    }
+  }
+
+  // Helper method to show errors
+  void _showErrorDialog(String title, String content) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$title: $content'),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   // --- NEW: Method to clear the contact information fields ---
   void _resetForm() {
-    _formKey.currentState?.reset(); 
+    _formKey.currentState?.reset();
     setState(() {
       _nameController.clear();
       _icController.clear();
@@ -372,6 +532,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 24),
 
+                  // --- 'Scan IC' Button ---
                   FilledButton.tonalIcon(
                     onPressed: _isScanning ? null : _startScan,
                     icon: _isScanning
@@ -387,6 +548,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
+
+                  // --- NEW: 'Capture Face' Button ---
+                  const SizedBox(height: 16),
+                  FilledButton.tonalIcon(
+                    onPressed: _isUploadingFace ? null : _captureFace,
+                    icon: _isUploadingFace
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : _faceImageKey != null // Show checkmark on success
+                            ? const Icon(Icons.check_circle,
+                                color: Colors.green)
+                            : const Icon(Icons.camera_front_outlined),
+                    label: Text(_isUploadingFace
+                        ? 'Uploading Face...'
+                        : _faceImageKey != null
+                            ? 'Face Captured!'
+                            : 'Capture Face for Login'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  // --- END NEW ---
+
                   const SizedBox(height: 24),
 
                   _buildPersonalDetailsCard(),
@@ -394,12 +581,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   _buildContactDetailsCard(),
                   const SizedBox(height: 32),
 
-                  // --- NEW: Button Row for Reset and Register ---
+                  // --- MODIFIED BUTTON ROW ---
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _resetForm,
+                          // Disable button while registering
+                          onPressed: _isRegistering ? null : _resetForm,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -411,17 +599,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: FilledButton(
-                          onPressed: _submitRegistration,
+                          // Disable button while registering OR if face is not yet captured
+                          onPressed: (_isRegistering || _faceImageKey == null)
+                              ? null
+                              : _submitRegistration,
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
+                            // Make button gray if disabled
+                            backgroundColor: (_faceImageKey == null)
+                                ? Colors.grey.shade400
+                                : null,
                           ),
-                          child: const Text(
-                            'Register Account',
-                            style: TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
+                          // Show loading indicator when registering
+                          child: _isRegistering
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
+                                )
+                              : const Text(
+                                  'Register Account',
+                                  style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
+                                ),
                         ),
                       ),
                     ],
