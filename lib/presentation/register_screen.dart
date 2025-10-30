@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/services/ocr_service.dart';
 import '../core/widgets/camera_screen.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../core/services/api_service.dart'; // 👈 IMPORT
 import 'dart:io';
 
 class RegisterScreen extends StatefulWidget {
@@ -14,25 +13,25 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // A key to identify and validate our form
   final _formKey = GlobalKey<FormState>();
 
-  // Services and state management
+  // --- Services ---
   final OcrService _ocrService = OcrService();
+  final ApiService _apiService = ApiService(); // 👈 USE
+
+  // --- State ---
   bool _isScanning = false;
   bool _isRegistering = false;
+  String? _faceImagePath;
+  String? _faceImageKey;
+  bool _isUploadingFace = false;
 
-  String? _faceImagePath; // Local path to the selfie
-  String? _faceImageKey; // Key for the S3 object (e.g., "uploads/123.jpg")
-  bool _isUploadingFace = false; // To show a loading indicator
-
-  // Controllers to manage the text in each input field
+  // --- Controllers ---
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _icController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _genderController = TextEditingController();
   final TextEditingController _religionController = TextEditingController();
-  // --- New address controllers ---
   final TextEditingController _addressLine1Controller = TextEditingController();
   final TextEditingController _addressLine2Controller = TextEditingController();
   final TextEditingController _postcodeController = TextEditingController();
@@ -40,7 +39,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    // Clean up all controllers when the widget is removed from the tree
     _nameController.dispose();
     _icController.dispose();
     _phoneController.dispose();
@@ -54,7 +52,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _startScan() async {
-    // 1. Navigate to the CameraScreen and wait for an image path
     final String? imagePath = await Navigator.of(context).push(
       MaterialPageRoute(
           builder: (_) => const CameraScreen(
@@ -62,7 +59,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               )),
     );
 
-    // 2. Return if no image was captured
     if (imagePath == null || !mounted) return;
 
     setState(() {
@@ -70,38 +66,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      // 3. Call the OCR service to extract data
       final data = await _ocrService.scanIcCard(imagePath);
       if (!mounted) return;
 
-      // 4. If data is extracted, populate the form fields
       if (data != null && data.isNotEmpty) {
-        _parseAndPopulateData(data); // Use a helper to populate fields
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Details extracted successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        _parseAndPopulateData(data);
+        _showSuccessSnackBar('Details extracted successfully!');
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not extract details. Please try again.'),
-            backgroundColor: Colors.orange,
-          ),
-        );
+        _showErrorSnackBar('Could not extract details. Please try again.');
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('An error occurred during scanning: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showErrorSnackBar('An error occurred during scanning: $e');
     } finally {
-      // 5. Always stop the loading indicator
       if (mounted) {
         setState(() {
           _isScanning = false;
@@ -119,12 +96,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
+  // --- REFACTORED: Uses ApiService ---
   Future<void> _captureFace() async {
-    // 1. Navigate to CameraScreen for a selfie
     final String? imagePath = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.face, // Assuming you add a 'face' mode
+          scanMode: CameraScanMode.face,
         ),
       ),
     );
@@ -133,27 +110,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() {
       _faceImagePath = imagePath;
-      _isUploadingFace = true; // Start loading
-      _faceImageKey = null; // Reset any previous key
+      _isUploadingFace = true;
+      _faceImageKey = null;
     });
 
-    // 2. Automatically start the upload
     try {
-      final String objectKey = await _uploadFaceToS3(imagePath);
+      // 1. Call the service
+      final String objectKey = await _apiService.uploadFaceToS3(imagePath);
 
+      // 2. Set state
+      if (!mounted) return;
       setState(() {
         _faceImageKey = objectKey;
       });
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Face captured and uploaded!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showSuccessSnackBar('Face captured and uploaded!');
     } catch (e) {
-      _showErrorDialog('Face Upload Failed', e.toString());
+      // 3. Handle errors from the service
+      _showErrorSnackBar('Face Upload Failed: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -163,69 +137,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // --- NEW: Method to upload the face to S3 via presigned URL ---
-  Future<String> _uploadFaceToS3(String imagePath) async {
-    // 1. Get the presigned URL from your new Lambda
-    //    (Replace with your API Gateway URL)
-    const String getUrlApi =
-        'https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev/upload-url';
-
-    final getUrlResponse = await http.get(Uri.parse(getUrlApi));
-
-    if (getUrlResponse.statusCode != 200) {
-      throw Exception('Could not get upload URL.');
-    }
-
-    final uploadData = jsonDecode(getUrlResponse.body);
-    final String presignedUrl = uploadData['uploadUrl'];
-    final String objectKey = uploadData['objectKey'];
-
-    // 2. Read the image file as bytes
-    final file = File(imagePath);
-    final bytes = await file.readAsBytes();
-
-    // 3. Upload the image bytes using an HTTP PUT request
-    final uploadResponse = await http.put(
-      Uri.parse(presignedUrl),
-      headers: {
-        'Content-Type': 'image/jpeg',
-      },
-      body: bytes,
-    );
-
-    if (uploadResponse.statusCode == 200) {
-      // Success! Return the S3 key
-      return objectKey;
-    } else {
-      throw Exception('Failed to upload image to S3.');
-    }
-  }
-
+  // --- REFACTORED: Uses ApiService ---
   Future<void> _submitRegistration() async {
-    // 1. Validate all form fields
     if (!_formKey.currentState!.validate()) {
-      print('Form is invalid!');
-      return; // Don't proceed if form is invalid
-    }
-
-    if (_faceImageKey == null) {
-      _showErrorDialog('Missing Face', 'Please capture your face to register.');
       return;
     }
 
-    // 2. Set loading state
+    if (_faceImageKey == null) {
+      _showErrorSnackBar('Please capture your face to register.');
+      return;
+    }
+
     setState(() {
       _isRegistering = true;
     });
 
-    // 3. Define your API Gateway Invoke URL
-    //    (Replace with the URL you got from API Gateway)
-    const String apiUrl =
-        'https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev/register';
-
     try {
-      // 4. Create the request body (Map)
-      //    Keys MUST match what your Lambda function expects
+      // 1. Create the request body
       final body = {
         'name': _nameController.text,
         'icNumber': _icController.text,
@@ -239,40 +167,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'faceImageKey': _faceImageKey,
       };
 
-      // 5. Send the POST request
-      final response = await http.post(
-        Uri.parse(apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body), // Encode the Map to a JSON string
-      );
+      // 2. Call the service
+      await _apiService.registerUser(body);
 
-      // 6. Check the response status code
-      if (response.statusCode == 200) {
-        // SUCCESS
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Registration Successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // Optionally, clear the form or navigate away
-        // _resetForm();
-        // Navigator.of(context).pop();
-      } else {
-        // FAILURE (e.g., 400, 500)
-        final errorBody = jsonDecode(response.body);
-        _showErrorDialog('Registration Failed',
-            errorBody['error'] ?? 'An unknown error occurred.');
-      }
+      // 3. Handle success
+      if (!mounted) return;
+      _showSuccessSnackBar('Registration Successful!');
+      // Optionally pop screen
+      // Navigator.of(context).pop();
     } catch (e) {
-      // NETWORK or OTHER ERROR
-      _showErrorDialog('Connection Error',
-          'Could not connect to the server. Please check your internet connection. $e');
+      // 4. Handle errors from the service
+      _showErrorSnackBar('Registration Failed: $e');
     } finally {
-      // 7. Stop loading state
       if (mounted) {
         setState(() {
           _isRegistering = false;
@@ -281,19 +187,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
-  // Helper method to show errors
-  void _showErrorDialog(String title, String content) {
+  // --- Helper snackbar methods ---
+  void _showErrorSnackBar(String content) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$title: $content'),
+        content: Text(content),
         backgroundColor: Colors.red,
-        duration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
 
-  // --- NEW: Method to clear the contact information fields ---
+  void _showSuccessSnackBar(String content) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(content),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
   void _resetForm() {
     _formKey.currentState?.reset();
     setState(() {
