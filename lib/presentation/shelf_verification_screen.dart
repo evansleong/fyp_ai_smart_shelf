@@ -77,18 +77,36 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       // 1. Read image and call service
       final imageBytes = await File(imagePath).readAsBytes();
       final String imageBase64 = base64Encode(imageBytes);
+
+      // 'user' map now contains {'userId', 'name', 'religion'}
+      // This calls your 'search_face_lambda.py'
       final user = await _apiService.verifyFace(imageBase64);
 
-      // 2. Handle success
+      // 2. --- NEW: Get Shelf and User data for the check ---
+      // This is where the 'religion' value from your selected code is used
+      final String? userReligion = user['religion'];
+      final String? shelfStatus = _shelfDetails?['halal_status'];
+
+      print('User Religion: $userReligion, Shelf Status: $shelfStatus');
+
+      // 3. --- NEW: Implement the Access Rule ---
+      if (userReligion == 'Muslim' && shelfStatus == 'Non-Halal') {
+        _showError(
+            'Access Denied: Your profile does not permit access to Non-Halal shelves.');
+        return; // Stop execution
+      }
+      // --- END NEW ---
+
+      // 4. Handle success (if rule passes)
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Welcome, ${user['name']}!'),
+          content: Text('Welcome, ${user['name']}! Access Granted.'),
           backgroundColor: Colors.green,
         ),
       );
 
-      // 3. Navigate
+      // 5. Navigate
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ShoppingScreen(
@@ -99,7 +117,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         ),
       );
     } catch (e) {
-      // 4. Handle errors
+      // 6. Handle errors
       _showError(e.toString());
     } finally {
       if (mounted) {
@@ -203,6 +221,18 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
                 color: Colors.grey.shade600,
               ),
         ),
+
+        const SizedBox(height: 8),
+        if (_shelfDetails?['halal_status'] != null)
+          Text(
+            'Status: ${_shelfDetails!['halal_status']}',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: _shelfDetails!['halal_status'] == 'Non-Halal'
+                      ? Colors.red.shade700
+                      : Colors.green.shade700,
+                ),
+          ),
         // --- END NEW ---
         const SizedBox(height: 32),
         const Icon(
