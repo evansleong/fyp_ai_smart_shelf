@@ -7,8 +7,27 @@ class ApiService {
   // --- Base URL for your API ---
   final String _baseUrl =
       "https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev";
-  final String _localUrl =
-      "http://shelf-pc.tailde3c02.ts.net:5000";
+  final String _localUrl = "http://shelf-pc.tailde3c02.ts.net:5000";
+
+  Future<bool> checkIcExists(String icNumber) async {
+    final response = await http.get(
+      // Assumes your new endpoint is /check-ic
+      Uri.parse('$_baseUrl/check-ic?icNumber=$icNumber'),
+    );
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      // Return the 'exists' boolean from the Lambda
+      return responseBody['exists'] ?? false;
+    } else if (response.statusCode == 400) {
+      throw Exception(responseBody['error'] ?? 'IC Number was not provided.');
+    } else {
+      // Throw any other error from the Lambda
+      throw Exception(responseBody['error'] ??
+          'An unknown error occurred while checking IC.');
+    }
+  }
 
   /// Throws an exception if the network call fails.
   /// Returns the S3 object key on success.

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'register_screen.dart'; // 👈 UPDATED PATH
+import 'register_details_screen.dart'; // 👈 UPDATED PATH
 import '../core/widgets/camera_screen.dart';
 import 'shelf_verification_screen.dart'; // 👈 UPDATED PATH
 import 'login_screen.dart'; // 👈 IMPORT
@@ -51,7 +51,7 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const RegisterScreen(), // 👈 Use RegisterScreen
+                        builder: (_) => const RegisterDetailsScreen(),
                       ),
                     );
                   },

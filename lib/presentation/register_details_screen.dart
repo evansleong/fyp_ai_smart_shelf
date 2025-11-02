@@ -2,29 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/services/ocr_service.dart';
 import '../core/widgets/camera_screen.dart';
-import '../core/services/api_service.dart'; // 👈 IMPORT
-import 'dart:io';
+import '../core/services/api_service.dart';
+import 'face_capture_screen.dart';
 
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+class RegisterDetailsScreen extends StatefulWidget {
+  const RegisterDetailsScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  State<RegisterDetailsScreen> createState() => _RegisterDetailsScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
 
   // --- Services ---
   final OcrService _ocrService = OcrService();
-  final ApiService _apiService = ApiService(); // 👈 USE
+  final ApiService _apiService = ApiService(); 
 
   // --- State ---
   bool _isScanning = false;
-  bool _isRegistering = false;
-  String? _faceImagePath;
-  String? _faceImageKey;
-  bool _isUploadingFace = false;
+  bool _isCheckingIC = false; // 👈 --- New loading state
 
   // --- Controllers ---
   final TextEditingController _nameController = TextEditingController();
@@ -39,6 +36,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    // (All your dispose methods remain the same)
     _nameController.dispose();
     _icController.dispose();
     _phoneController.dispose();
@@ -51,6 +49,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
+  // --- ( _startScan, _parseAndPopulateData remain exactly the same) ---
   Future<void> _startScan() async {
     final String? imagePath = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -96,98 +95,69 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  // --- REFACTORED: Uses ApiService ---
-  Future<void> _captureFace() async {
-    final String? imagePath = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.face,
-        ),
-      ),
-    );
-
-    if (imagePath == null || !mounted) return;
-
-    setState(() {
-      _faceImagePath = imagePath;
-      _isUploadingFace = true;
-      _faceImageKey = null;
-    });
-
-    try {
-      // 1. Call the service
-      final String objectKey = await _apiService.uploadFaceToS3(imagePath);
-
-      // 2. Set state
-      if (!mounted) return;
-      setState(() {
-        _faceImageKey = objectKey;
-      });
-
-      _showSuccessSnackBar('Face captured and uploaded!');
-    } catch (e) {
-      // 3. Handle errors from the service
-      _showErrorSnackBar('Face Upload Failed: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isUploadingFace = false;
-        });
-      }
-    }
-  }
-
-  // --- REFACTORED: Uses ApiService ---
-  Future<void> _submitRegistration() async {
+  // --- 🚀 NEW: This function validates, checks IC, and navigates ---
+  Future<void> _goToNextStep() async {
+    // 1. Validate the form fields
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_faceImageKey == null) {
-      _showErrorSnackBar('Please capture your face to register.');
+    // 2. Extra check: Ensure IC is present from scan
+    if (_icController.text.isEmpty) {
+      _showErrorSnackBar('Please scan your IC first.');
       return;
     }
 
     setState(() {
-      _isRegistering = true;
+      _isCheckingIC = true;
     });
 
     try {
-      // 1. Create the request body
-      final body = {
-        'name': _nameController.text,
-        'icNumber': _icController.text,
-        'gender': _genderController.text,
-        'religion': _religionController.text,
-        'phone': _phoneController.text,
-        'addressLine1': _addressLine1Controller.text,
-        'addressLine2': _addressLine2Controller.text,
-        'postcode': _postcodeController.text,
-        'state': _stateController.text,
-        'faceImageKey': _faceImageKey,
-      };
+      // 3. Call the new ApiService method
+      final bool icExists = await _apiService.checkIcExists(_icController.text);
 
-      // 2. Call the service
-      await _apiService.registerUser(body);
-
-      // 3. Handle success
       if (!mounted) return;
-      _showSuccessSnackBar('Registration Successful!');
-      // Optionally pop screen
-      // Navigator.of(context).pop();
+
+      // 4. Handle response
+      if (icExists) {
+        // IC is a duplicate
+        _showErrorSnackBar('This IC number is already registered.');
+      } else {
+        // IC is unique, proceed to Face Capture Screen
+
+        // 5. Package all data into a Map
+        final userDetails = {
+          'name': _nameController.text,
+          'icNumber': _icController.text,
+          'gender': _genderController.text,
+          'religion': _religionController.text,
+          'phone': _phoneController.text,
+          'addressLine1': _addressLine1Controller.text,
+          'addressLine2': _addressLine2Controller.text,
+          'postcode': _postcodeController.text,
+          'state': _stateController.text,
+        };
+
+        // 6. Navigate to Step 2, passing the data
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => FaceCaptureScreen(userDetails: userDetails),
+          ),
+        );
+      }
     } catch (e) {
-      // 4. Handle errors from the service
-      _showErrorSnackBar('Registration Failed: $e');
+      // Handle errors from the API call
+      _showErrorSnackBar('Error: $e');
     } finally {
       if (mounted) {
         setState(() {
-          _isRegistering = false;
+          _isCheckingIC = false;
         });
       }
     }
   }
 
-  // --- Helper snackbar methods ---
+  // --- (Helper snackbar and _resetForm methods remain the same) ---
   void _showErrorSnackBar(String content) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -326,7 +296,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- MODIFIED: Added icon and subtitle for clarity ---
             Row(
               children: [
                 Icon(Icons.edit_note_outlined,
@@ -408,21 +377,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Account'),
+        title:
+            const Text('Create Account (Step 1 of 2)'), // 👈 --- Title changed
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Theme.of(context).colorScheme.surface,
-              Theme.of(context).colorScheme.surface.withOpacity(0.8),
-            ],
-          ),
-        ),
+        // ... (gradient decoration is the same)
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -431,6 +392,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // ... (Header text is the same)
                   Text(
                     "Let's Get You Started",
                     textAlign: TextAlign.center,
@@ -447,7 +409,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // --- 'Scan IC' Button ---
+                  // --- 'Scan IC' Button (Same) ---
                   FilledButton.tonalIcon(
                     onPressed: _isScanning ? null : _startScan,
                     icon: _isScanning
@@ -464,30 +426,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
 
-                  // --- NEW: 'Capture Face' Button ---
-                  const SizedBox(height: 16),
-                  FilledButton.tonalIcon(
-                    onPressed: _isUploadingFace ? null : _captureFace,
-                    icon: _isUploadingFace
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : _faceImageKey != null // Show checkmark on success
-                            ? const Icon(Icons.check_circle,
-                                color: Colors.green)
-                            : const Icon(Icons.camera_front_outlined),
-                    label: Text(_isUploadingFace
-                        ? 'Uploading Face...'
-                        : _faceImageKey != null
-                            ? 'Face Captured!'
-                            : 'Capture Face for Login'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  // --- END NEW ---
+                  // --- (Capture Face Button is REMOVED) ---
 
                   const SizedBox(height: 24),
 
@@ -501,8 +440,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          // Disable button while registering
-                          onPressed: _isRegistering ? null : _resetForm,
+                          onPressed: _isCheckingIC ? null : _resetForm,
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -514,21 +452,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(width: 16),
                       Expanded(
                         child: FilledButton(
-                          // Disable button while registering OR if face is not yet captured
-                          onPressed: (_isRegistering || _faceImageKey == null)
-                              ? null
-                              : _submitRegistration,
+                          // On pressed now calls _goToNextStep
+                          onPressed: _isCheckingIC ? null : _goToNextStep,
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12)),
-                            // Make button gray if disabled
-                            backgroundColor: (_faceImageKey == null)
-                                ? Colors.grey.shade400
-                                : null,
                           ),
-                          // Show loading indicator when registering
-                          child: _isRegistering
+                          child: _isCheckingIC // 👈 --- Show loading
                               ? const SizedBox(
                                   height: 24,
                                   width: 24,
@@ -538,7 +469,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   ),
                                 )
                               : const Text(
-                                  'Register Account',
+                                  'Next', // 👈 --- Button text changed
                                   style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold),
