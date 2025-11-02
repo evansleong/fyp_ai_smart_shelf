@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../core/model/product_model.dart'; // 👈 IMPORT
 import '../core/services/api_service.dart'; // 👈 IMPORT
 
@@ -6,12 +7,16 @@ class ShoppingScreen extends StatefulWidget {
   final String shelfId;
   final String userName;
   final String shelfName; // This is passed from the previous screen
+  final String shopId;
+  final String? customerId;
 
   const ShoppingScreen({
     super.key,
     required this.shelfId,
     required this.userName,
     required this.shelfName,
+    required this.shopId,
+    this.customerId,
   });
 
   @override
@@ -28,6 +33,28 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   String? _errorMessage;
   late String _apiShelfName;
   String _shelfStatus = '';
+
+  Future<void> _triggerAgain() async {
+    try {
+      final String sessionId = const Uuid().v4();
+      final res = await _apiService.remoteStart(
+        shopId: widget.shopId,
+        shelfId: widget.shelfId,
+        sessionId: sessionId,
+        customerId: widget.customerId,
+        expiresIn: 60,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Re-triggered camera (event ${res['event_id']})')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Trigger failed: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -86,6 +113,11 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                 style: const TextStyle(fontSize: 16),
               ),
             ),
+          ),
+          IconButton(
+            tooltip: 'Trigger Again',
+            icon: const Icon(Icons.replay_circle_filled_outlined),
+            onPressed: _triggerAgain,
           ),
         ],
       ),

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'package:uuid/uuid.dart';
 
 import '../core/widgets/camera_screen.dart';
 import 'shopping_screen.dart';
-import '../core/services/api_service.dart'; // 👈 IMPORT
+import '../core/services/api_service.dart'; // IMPORT
 
 class ShelfVerificationScreen extends StatefulWidget {
   final String shelfId;
@@ -21,7 +22,7 @@ class ShelfVerificationScreen extends StatefulWidget {
 
 class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
   // --- Service ---
-  final ApiService _apiService = ApiService(); // 👈 USE
+  final ApiService _apiService = ApiService(); // USE
 
   // --- State ---
   bool _isLoadingShelfDetails = true;
@@ -97,7 +98,30 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       }
       // --- END NEW ---
 
-      // 4. Handle success (if rule passes)
+      // 4. Trigger camera on the shelf device via backend
+      final lookup = await _apiService.lookupShelf(widget.shelfId);
+      final String shopId = (lookup['shop_id'] ?? '').toString();
+      if (shopId.isEmpty) {
+        throw Exception('Shelf lookup missing shop_id');
+      }
+      final String sessionId = const Uuid().v4();
+      final startRes = await _apiService.remoteStart(
+        shopId: shopId,
+        shelfId: widget.shelfId,
+        sessionId: sessionId,
+        customerId: (user['userId'] ?? user['id'] ?? '').toString(),
+        expiresIn: 60,
+      );
+
+      // 5. Inform user and proceed
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Camera starting… (event ${startRes['event_id']})'),
+        ),
+      );
+
+      // 6. Handle success (if rule passes)
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -106,18 +130,20 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         ),
       );
 
-      // 5. Navigate
+      // 7. Navigate
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ShoppingScreen(
             shelfId: widget.shelfId,
             userName: user['name'],
             shelfName: _shelfDetails?['name'] ?? widget.shelfId,
+            shopId: shopId,
+            customerId: (user['userId'] ?? user['id'] ?? '').toString(),
           ),
         ),
       );
     } catch (e) {
-      // 6. Handle errors
+      // 8. Handle errors
       _showError(e.toString());
     } finally {
       if (mounted) {

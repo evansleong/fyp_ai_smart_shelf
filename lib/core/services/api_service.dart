@@ -7,6 +7,8 @@ class ApiService {
   // --- Base URL for your API ---
   final String _baseUrl =
       "https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev";
+  final String _localUrl =
+      "http://shelf-pc.tailde3c02.ts.net:5000";
 
   /// Throws an exception if the network call fails.
   /// Returns the S3 object key on success.
@@ -106,6 +108,43 @@ class ApiService {
       return responseBody;
     } else {
       throw Exception(responseBody['error'] ?? 'Failed to load products.');
+    }
+  }
+
+  Future<Map<String, dynamic>> lookupShelf(String shelfId) async {
+    final response = await http.get(
+      Uri.parse('$_localUrl/shelf/lookup/$shelfId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return body as Map<String, dynamic>;
+    } else {
+      throw Exception(body['error'] ?? 'Shelf lookup failed.');
+    }
+  }
+
+  Future<Map<String, dynamic>> remoteStart({
+    required String shopId,
+    required String shelfId,
+    required String sessionId,
+    String? customerId,
+    int expiresIn = 60,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$_localUrl/detection/$shopId/$shelfId/remote-start'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'session_id': sessionId,
+        'customer_id': customerId,
+        'expires_in': expiresIn,
+      }),
+    );
+    final body = jsonDecode(response.body);
+    if (response.statusCode == 200) {
+      return body as Map<String, dynamic>;
+    } else {
+      throw Exception(body['error'] ?? 'remote-start failed.');
     }
   }
 }
