@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 import '../core/model/product_model.dart'; // 👈 IMPORT
 import '../core/services/api_service.dart'; // 👈 IMPORT
 
@@ -36,17 +35,13 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
 
   Future<void> _triggerAgain() async {
     try {
-      final String sessionId = const Uuid().v4();
-      final res = await _apiService.remoteStart(
+      await _apiService.awsRemoteStart(
         shopId: widget.shopId,
         shelfId: widget.shelfId,
-        sessionId: sessionId,
-        customerId: widget.customerId,
-        expiresIn: 60,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Re-triggered camera (event ${res['event_id']})')),
+        const SnackBar(content: Text('Shelf opened - Monitoring started')),
       );
     } catch (e) {
       if (!mounted) return;

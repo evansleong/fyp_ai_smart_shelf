@@ -7,7 +7,9 @@ class ApiService {
   // --- Base URL for your API ---
   final String _baseUrl =
       "https://yzrixheojf.execute-api.ap-southeast-1.amazonaws.com/dev";
-  final String _localUrl = "http://shelf-pc.tailde3c02.ts.net:5000";
+  // AWS REST API (prod) for camera endpoints
+  final String _awsProdBase =
+      "https://twhhc88zla.execute-api.ap-southeast-1.amazonaws.com/prod";
 
   Future<bool> checkIcExists(String icNumber) async {
     final response = await http.get(
@@ -130,40 +132,75 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> lookupShelf(String shelfId) async {
-    final response = await http.get(
-      Uri.parse('$_localUrl/shelf/lookup/$shelfId'),
-      headers: {'Content-Type': 'application/json'},
-    );
-    final body = jsonDecode(response.body);
-    if (response.statusCode == 200) {
+  // ===== AWS Camera API (REST) =====
+  // GET /camera/shelf/{shelf_id}
+  Future<Map<String, dynamic>> awsShelfLookup(String shelfId) async {
+    final uri = Uri.parse('$_awsProdBase/camera/shelf/$shelfId');
+    final res = await http.get(uri, headers: {
+      'Accept': 'application/json',
+    });
+    final body = jsonDecode(res.body);
+    if (res.statusCode == 200) {
       return body as Map<String, dynamic>;
+    } else if (res.statusCode == 404) {
+      throw Exception(body['error'] ?? 'Shelf not found');
+    } else if (res.statusCode == 400) {
+      throw Exception(body['error'] ?? 'Invalid request');
     } else {
-      throw Exception(body['error'] ?? 'Shelf lookup failed.');
+      throw Exception(body['error'] ?? 'Server error');
     }
   }
 
-  Future<Map<String, dynamic>> remoteStart({
+  // POST /camera/remote-start/{shop_id}/{shelf_id}
+  Future<Map<String, dynamic>> awsRemoteStart({
     required String shopId,
     required String shelfId,
-    required String sessionId,
+    String? sessionId,
     String? customerId,
-    int expiresIn = 60,
   }) async {
-    final response = await http.post(
-      Uri.parse('$_localUrl/detection/$shopId/$shelfId/remote-start'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'session_id': sessionId,
-        'customer_id': customerId,
-        'expires_in': expiresIn,
-      }),
+    final uri = Uri.parse('$_awsProdBase/camera/remote-start/$shopId/$shelfId');
+    final payload = <String, dynamic>{};
+    if (sessionId != null) payload['session_id'] = sessionId;
+    if (customerId != null) payload['customer_id'] = customerId;
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: payload.isEmpty ? null : jsonEncode(payload),
     );
-    final body = jsonDecode(response.body);
-    if (response.statusCode == 200) {
+    final body = jsonDecode(res.body);
+    if (res.statusCode == 200) {
       return body as Map<String, dynamic>;
+    } else if (res.statusCode == 404) {
+      throw Exception(body['error'] ?? 'Shelf not found');
+    } else if (res.statusCode == 400) {
+      throw Exception(body['error'] ?? 'Invalid request');
     } else {
-      throw Exception(body['error'] ?? 'remote-start failed.');
+      throw Exception(body['error'] ?? 'Server error');
+    }
+  }
+
+  // POST /camera/mobile-stop/{shop_id}/{shelf_id}
+  Future<Map<String, dynamic>> awsMobileStop({
+    required String shopId,
+    required String shelfId,
+  }) async {
+    final uri = Uri.parse('$_awsProdBase/camera/mobile-stop/$shopId/$shelfId');
+    final res = await http.post(uri, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+    final body = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return body as Map<String, dynamic>;
+    } else if (res.statusCode == 404) {
+      throw Exception(body['error'] ?? 'Shelf not found');
+    } else if (res.statusCode == 400) {
+      throw Exception(body['error'] ?? 'Invalid request');
+    } else {
+      throw Exception(body['error'] ?? 'Server error');
     }
   }
 }

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
-import 'package:uuid/uuid.dart';
 
 import '../core/widgets/camera_screen.dart';
 import 'shopping_screen.dart';
 import '../core/services/api_service.dart'; // IMPORT
+import 'package:uuid/uuid.dart';
 
 class ShelfVerificationScreen extends StatefulWidget {
   final String shelfId;
@@ -29,6 +29,8 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
   String? _shelfFetchError;
   Map<String, dynamic>? _shelfDetails;
   bool _isVerifying = false;
+  bool _isMonitoring = false;
+  String? _shopId; // stored after lookup
 
   @override
   void initState() {
@@ -39,8 +41,8 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
   // --- REFACTORED: Uses ApiService ---
   Future<void> _fetchShelfDetails() async {
     try {
-      // 1. Call the service
-      final shelfData = await _apiService.fetchShelfDetails(widget.shelfId);
+      // 1. Call AWS shelf lookup
+      final shelfData = await _apiService.awsShelfLookup(widget.shelfId);
 
       // 2. Set state
       if (!mounted) return;
@@ -98,26 +100,39 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       }
       // --- END NEW ---
 
-      // 4. Trigger camera on the shelf device via backend
-      final lookup = await _apiService.lookupShelf(widget.shelfId);
+      // 4. Trigger camera on the shelf device via AWS backend
+      final lookup = await _apiService.awsShelfLookup(widget.shelfId);
       final String shopId = (lookup['shop_id'] ?? '').toString();
       if (shopId.isEmpty) {
         throw Exception('Shelf lookup missing shop_id');
       }
+      _shopId = shopId;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Starting shelf for shop $shopId…')),
+        );
+      }
       final String sessionId = const Uuid().v4();
-      final startRes = await _apiService.remoteStart(
+      final String? customerId = (user['userId'] ?? user['id'])?.toString();
+      final startRes = await _apiService.awsRemoteStart(
         shopId: shopId,
         shelfId: widget.shelfId,
         sessionId: sessionId,
-        customerId: (user['userId'] ?? user['id'] ?? '').toString(),
-        expiresIn: 60,
+        customerId: customerId,
       );
+      if (mounted) {
+        setState(() {
+          _isMonitoring = true;
+        });
+      }
 
       // 5. Inform user and proceed
       if (!mounted) return;
+      final String shownSession = (startRes['session_id'] ?? sessionId).toString();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Camera starting… (event ${startRes['event_id']})'),
+          content: Text('Shelf opened - Monitoring started (session: $shownSession)'),
+          backgroundColor: Colors.green,
         ),
       );
 
@@ -136,7 +151,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
           builder: (_) => ShoppingScreen(
             shelfId: widget.shelfId,
             userName: user['name'],
-            shelfName: _shelfDetails?['name'] ?? widget.shelfId,
+            shelfName: _shelfDetails?['shelf_name'] ?? widget.shelfId,
             shopId: shopId,
             customerId: (user['userId'] ?? user['id'] ?? '').toString(),
           ),
@@ -165,18 +180,35 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
     );
   }
 
+  Future<void> _stopShelfMonitoring() async {
+    if (!_isMonitoring || _shopId == null) return;
+    try {
+      await _apiService.awsMobileStop(shopId: _shopId!, shelfId: widget.shelfId);
+    } catch (_) {
+      // swallow errors on back for smoother UX
+    } finally {
+      _isMonitoring = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Verify Identity'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          // --- MODIFIED: Use a helper to show content based on loading state ---
-          child: _buildBody(),
-          // --- END MODIFIED ---
+    return WillPopScope(
+      onWillPop: () async {
+        await _stopShelfMonitoring();
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Verify Identity'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            // --- MODIFIED: Use a helper to show content based on loading state ---
+            child: _buildBody(),
+            // --- END MODIFIED ---
+          ),
         ),
       ),
     );
@@ -223,23 +255,24 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       children: [
         // --- NEW: Display Shelf Name and Location ---
         Text(
-          _shelfDetails?['name'] ?? 'Smart Shelf', // Shelf Name
+          _shelfDetails?['shelf_name'] ?? 'Smart Shelf', // Shelf Name (AWS)
           style: Theme.of(context).textTheme.headlineSmall,
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.location_on_outlined,
-                size: 16, color: Colors.grey.shade700),
-            const SizedBox(width: 4),
-            Text(
-              _shelfDetails?['location'] ?? 'Loading location...', // Location
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-          ],
-        ),
+        if (_shelfDetails?['location'] != null)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.location_on_outlined,
+                  size: 16, color: Colors.grey.shade700),
+              const SizedBox(width: 4),
+              Text(
+                _shelfDetails!['location'], // Optional Location
+                style: Theme.of(context).textTheme.bodyLarge,
+              ),
+            ],
+          ),
         const SizedBox(height: 4),
         Text(
           'ID: ${widget.shelfId}', // The original ID
