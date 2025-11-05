@@ -3,6 +3,7 @@ import 'dart:async';
 import '../core/model/product_model.dart'; // 👈 IMPORT
 import '../core/services/api_service.dart'; // 👈 IMPORT
 import '../core/model/cart_model.dart';
+import 'cart_screen.dart';
 
 class ShoppingScreen extends StatefulWidget {
   final String shelfId;
@@ -10,6 +11,8 @@ class ShoppingScreen extends StatefulWidget {
   final String shelfName; // This is passed from the previous screen
   final String shopId;
   final String? customerId;
+  final String? userEmail;
+  final String? userPhone;
 
   const ShoppingScreen({
     super.key,
@@ -18,6 +21,8 @@ class ShoppingScreen extends StatefulWidget {
     required this.shelfName,
     required this.shopId,
     this.customerId,
+    this.userEmail,
+    this.userPhone,
   });
 
   @override
@@ -386,6 +391,30 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
               style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              if (widget.customerId == null || widget.customerId!.isEmpty) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CartScreen(
+                    shopId: widget.shopId,
+                    customerId: widget.customerId!,
+                    shelfId: widget.shelfId,
+                    userName: widget.userName,
+                    shelfName: widget.shelfName,
+                    userEmail: widget.userEmail,
+                    userPhone: widget.userPhone,
+                  ),
+                ),
+              );
+            },
+            child: const Text('Go to Cart'),
+          ),
         ),
       ],
     );

@@ -100,7 +100,23 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       }
       // --- END NEW ---
 
-      // 4. Trigger camera on the shelf device via AWS backend
+      // 4. Optionally fetch full shopper profile from carts API (DynamoDB)
+      final String? shopperId = (user['userId'] ?? user['id'])?.toString();
+      String? shopperEmail;
+      String? shopperPhone;
+      String? shopperName;
+      if (shopperId != null && shopperId.isNotEmpty) {
+        try {
+          final shopper = await _apiService.getShopperInfo(shpUserId: shopperId);
+          if (shopper != null) {
+            shopperEmail = (shopper['email'] ?? '').toString().isEmpty ? null : (shopper['email'] ?? '').toString();
+            shopperPhone = (shopper['phone'] ?? '').toString().isEmpty ? null : (shopper['phone'] ?? '').toString();
+            shopperName = (shopper['name'] ?? '').toString().isEmpty ? null : (shopper['name'] ?? '').toString();
+          }
+        } catch (_) {}
+      }
+
+      // 5. Trigger camera on the shelf device via AWS backend
       final lookup = await _apiService.awsShelfLookup(widget.shelfId);
       final String shopId = (lookup['shop_id'] ?? '').toString();
       if (shopId.isEmpty) {
@@ -126,7 +142,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         });
       }
 
-      // 5. Inform user and proceed
+      // 6. Inform user and proceed
       if (!mounted) return;
       final String shownSession = (startRes['session_id'] ?? sessionId).toString();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -136,7 +152,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         ),
       );
 
-      // 6. Handle success (if rule passes)
+      // 7. Handle success (if rule passes)
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -145,15 +161,17 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         ),
       );
 
-      // 7. Navigate
+      // 8. Navigate
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ShoppingScreen(
             shelfId: widget.shelfId,
-            userName: user['name'],
+            userName: (shopperName ?? user['name']).toString(),
             shelfName: _shelfDetails?['shelf_name'] ?? widget.shelfId,
             shopId: shopId,
             customerId: (user['userId'] ?? user['id'] ?? '').toString(),
+            userEmail: shopperEmail ?? ((user['email'] ?? '').toString().isEmpty ? null : (user['email'] ?? '').toString()),
+            userPhone: shopperPhone ?? ((user['phone'] ?? '').toString().isEmpty ? null : (user['phone'] ?? '').toString()),
           ),
         ),
       );
