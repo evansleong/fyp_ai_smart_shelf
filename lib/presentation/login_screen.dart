@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart'; // We will navigate here on success
-// --- NEW IMPORTS ---
+import 'home_screen.dart'; 
 import '../core/services/api_service.dart';
 import '../core/widgets/camera_screen.dart';
 import 'dart:io';
 import 'dart:convert';
-// --- END NEW IMPORTS ---
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,7 +38,13 @@ class _LoginScreenState extends State<LoginScreen> {
       // 2. Read image and call verification service
       final imageBytes = await File(imagePath).readAsBytes();
       final String imageBase64 = base64Encode(imageBytes);
-      final user = await _apiService.verifyFace(imageBase64); // This is the login
+      final user =
+          await _apiService.verifyFace(imageBase64); // This is the login
+
+      // --- ADDED THIS DEBUG PRINT ---
+      print('--- USER DATA FROM LOGIN ---');
+      print(user);
+      // --- END DEBUG ---
 
       // 3. Handle success
       if (!mounted) return;
@@ -53,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 4. Navigate to HomeScreen
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
       );
     } catch (e) {
       // 5. Handle errors (e.g., face not recognized)
@@ -73,7 +77,6 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     }
   }
-  // --- END MODIFIED ---
 
   @override
   void dispose() {
@@ -119,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 32),
-                
+
                 // --- REMOVED THE Card/Form ---
 
                 // --- ADDED Face Scan UI ---
@@ -149,7 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                 // --- END ADDED UI ---
-                
+
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -172,4 +175,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+// --- MODIFIED: Accept the user map ---
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final Map<String, dynamic> user;
+
+  const ProfileScreen({
+    super.key,
+    required this.user,
+  });
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -10,27 +16,45 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _isEditing = false; // Controls if fields are editable
+  bool _isEditing = false;
 
-  // Controllers to manage text
-  final TextEditingController _nameController =
-      TextEditingController(text: "LEONG GAO CHONG");
-  final TextEditingController _icController =
-      TextEditingController(text: "030504-14-0267");
-  final TextEditingController _phoneController =
-      TextEditingController(text: "01173758544");
-  final TextEditingController _genderController =
-      TextEditingController(text: "Male");
-  final TextEditingController _religionController =
-      TextEditingController(text: "Non-Muslim");
-  final TextEditingController _addressLine1Controller =
-      TextEditingController(text: "maluri");
-  final TextEditingController _addressLine2Controller =
-      TextEditingController(text: "");
-  final TextEditingController _postcodeController =
-      TextEditingController(text: "55100");
-  final TextEditingController _stateController =
-      TextEditingController(text: "kl");
+  // --- MODIFIED: Declare controllers as 'late' ---
+  // We will initialize them in initState()
+  late final TextEditingController _nameController;
+  late final TextEditingController _icController;
+  late final TextEditingController _phoneController;
+  late final TextEditingController _genderController;
+  late final TextEditingController _religionController;
+  late final TextEditingController _addressLine1Controller;
+  late final TextEditingController _addressLine2Controller;
+  late final TextEditingController _postcodeController;
+  late final TextEditingController _stateController;
+
+  // --- NEW: Initialize controllers with user data ---
+  @override
+  void initState() {
+    super.initState();
+    // Get the user map passed from the HomeScreen
+    final user = widget.user;
+
+    // Handle the "<empty>" string from DynamoDB
+    String address2 = user['addressLine2'] ?? '';
+    if (address2 == '<empty>') {
+      address2 = '';
+    }
+
+    // Initialize all controllers with the user's data
+    _nameController = TextEditingController(text: user['name'] ?? '');
+    _icController = TextEditingController(text: user['icNumber'] ?? '');
+    _phoneController = TextEditingController(text: user['phone'] ?? '');
+    _genderController = TextEditingController(text: user['gender'] ?? '');
+    _religionController = TextEditingController(text: user['religion'] ?? '');
+    _addressLine1Controller =
+        TextEditingController(text: user['addressLine1'] ?? '');
+    _addressLine2Controller = TextEditingController(text: address2);
+    _postcodeController = TextEditingController(text: user['postcode'] ?? '');
+    _stateController = TextEditingController(text: user['state'] ?? '');
+  }
 
   @override
   void dispose() {
@@ -47,21 +71,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  // --- MODIFIED: Add validation before saving ---
   void _toggleEdit() {
     setState(() {
       if (_isEditing) {
-        // If we were editing, now we save
-        // In a real app, you would call your ApiService.updateProfile() here
-        // and only set _isEditing = false on success
-        _isEditing = false;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        // --- User is trying to SAVE ---
+        // First, validate the form
+        if (_formKey.currentState!.validate()) {
+          // If valid, stop editing and show success
+          _isEditing = false;
+          
+          // TODO: In the future, you will call your API here
+          // 1. Show a loading indicator
+          // 2. final success = await _apiService.updateProfile({ ... });
+          // 3. Only set _isEditing = false and show snackbar if success
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Profile updated successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          // If form is not valid, stay in editing mode
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please fix the errors in the form.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       } else {
-        // If we were not editing, now we edit
+        // --- User is trying to EDIT ---
         _isEditing = true;
       }
     });
@@ -96,6 +137,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- UI HELPER: Personal Details (Non-Editable) ---
+  // (No changes needed in this function)
   Widget _buildPersonalDetailsCard() {
     final disabledFillColor = Colors.grey.shade200;
     final inputDecoration = InputDecoration(
@@ -162,6 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- UI HELPER: Contact Details (Editable) ---
+  // (No changes needed in this function)
   Widget _buildContactDetailsCard() {
     final inputDecoration = InputDecoration(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

@@ -217,6 +217,29 @@ class ApiService {
     }
   }
 
+  /// Fetches a list of formatted orders for a specific customer.
+  /// Throws an exception if the network call fails.
+  Future<List<dynamic>> getCustomerOrders(String customerId) async {
+    // You'll need to create this endpoint in your API Gateway.
+    // I'm using '/orders/{customerId}' as an example.
+    final response = await http.get(
+      Uri.parse('$_baseUrl/orders/$customerId'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    );
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      // Assumes the API returns a list of orders, e.g., { "orders": [...] }
+      return responseBody['orders'] as List<dynamic>;
+    } else {
+      throw Exception(responseBody['error'] ?? 'Failed to load orders.');
+    }
+  }
+
   // POST /camera/remote-start/{shop_id}/{shelf_id}
   Future<Map<String, dynamic>> awsRemoteStart({
     required String shopId,
