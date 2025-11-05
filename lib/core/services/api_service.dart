@@ -151,17 +151,51 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getCustomerCart({
+    required String customerId,
+    required String shopId,
+  }) async {
+    final uri = Uri.parse('$_awsProdBase/carts');
+    final payload = {
+      'action': 'get_cart',
+      'params': {
+        'customer_id': customerId,
+        'shop_id': shopId,
+      }
+    };
+    final res = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(payload),
+    );
+    final body = jsonDecode(res.body);
+    if (res.statusCode == 200) {
+      return body as Map<String, dynamic>;
+    } else if (res.statusCode == 400) {
+      throw Exception(body['message'] ?? 'Invalid request');
+    } else if (res.statusCode == 404) {
+      throw Exception(body['message'] ?? 'Cart not found');
+    } else {
+      throw Exception(body['message'] ?? 'Server error');
+    }
+  }
+
   // POST /camera/remote-start/{shop_id}/{shelf_id}
   Future<Map<String, dynamic>> awsRemoteStart({
     required String shopId,
     required String shelfId,
     String? sessionId,
     String? customerId,
+    String? shpUserId,
   }) async {
     final uri = Uri.parse('$_awsProdBase/camera/remote-start/$shopId/$shelfId');
     final payload = <String, dynamic>{};
     if (sessionId != null) payload['session_id'] = sessionId;
     if (customerId != null) payload['customer_id'] = customerId;
+    if (shpUserId != null) payload['shp_user_id'] = shpUserId;
     final res = await http.post(
       uri,
       headers: {

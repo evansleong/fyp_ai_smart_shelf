@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../core/model/product_model.dart'; // 👈 IMPORT
 import '../core/services/api_service.dart'; // 👈 IMPORT
+import '../core/model/cart_model.dart';
 
 class ShoppingScreen extends StatefulWidget {
   final String shelfId;
@@ -32,6 +34,10 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   String? _errorMessage;
   late String _apiShelfName;
   String _shelfStatus = '';
+  Cart? _cart;
+  bool _cartLoading = true;
+  String? _cartError;
+  Timer? _cartTimer;
 
   Future<void> _triggerAgain() async {
     try {
@@ -52,10 +58,48 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   }
 
   @override
+  void dispose() {
+    _cartTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchCart() async {
+    try {
+      final body = await _apiService.getCustomerCart(
+        customerId: widget.customerId!,
+        shopId: widget.shopId,
+      );
+      if (!mounted) return;
+      if (body['success'] == true && body['cart'] is Map<String, dynamic>) {
+        setState(() {
+          _cart = Cart.fromJson(body['cart'] as Map<String, dynamic>);
+          _cartError = null;
+          _cartLoading = false;
+        });
+      } else {
+        setState(() {
+          _cartError = (body['message'] ?? 'Failed to load cart').toString();
+          _cartLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cartError = e.toString();
+        _cartLoading = false;
+      });
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     _apiShelfName = widget.shelfName;
     _fetchShelfProducts();
+    if (widget.customerId != null && widget.customerId!.isNotEmpty) {
+      _fetchCart();
+      _cartTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fetchCart());
+    }
   }
 
   // --- REFACTORED: Uses ApiService ---
@@ -253,6 +297,96 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
               },
             ),
           ),
+        if (widget.customerId != null && widget.customerId!.isNotEmpty)
+          Column(
+            children: [
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: _buildCartSection(),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCartSection() {
+    if (_cartLoading) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: Text('Loading cart...'),
+      );
+    }
+    if (_cartError != null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          _cartError!,
+          style: const TextStyle(color: Colors.red),
+        ),
+      );
+    }
+    if (_cart == null || _cart!.items.isEmpty) {
+      return const Align(
+        alignment: Alignment.centerLeft,
+        child: Text('Your cart is empty'),
+      );
+    }
+
+    // Build a lookup for product metadata to enrich cart items with names/prices
+    final Map<String, Product> productById = {
+      for (final p in _products) p.id: p,
+    };
+
+    // Compute display total using enriched prices when available
+    final double displayTotal = _cart!.items.fold(0.0, (sum, it) {
+      final p = productById[it.productId];
+      final price = p?.price ?? it.price;
+      return sum + price * it.quantity;
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Your Cart',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        ..._cart!.items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 6.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    (productById[item.productId]?.name ?? item.name),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Text(
+                  '${item.quantity} x RM ${(productById[item.productId]?.price ?? item.price).toStringAsFixed(2)}',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Total',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            Text(
+              'RM ${displayTotal.toStringAsFixed(2)}',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+            ),
+          ],
+        ),
       ],
     );
   }

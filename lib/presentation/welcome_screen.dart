@@ -3,6 +3,7 @@ import 'register_details_screen.dart'; // 👈 UPDATED PATH
 import '../core/widgets/camera_screen.dart';
 import 'shelf_verification_screen.dart'; // 👈 UPDATED PATH
 import 'login_screen.dart'; // 👈 IMPORT
+import '../core/services/api_service.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -75,13 +76,31 @@ class WelcomeScreen extends StatelessWidget {
                     );
 
                     if (qrCodeResult != null && context.mounted) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ShelfVerificationScreen(
-                            shelfId: qrCodeResult,
+                      try {
+                        final api = ApiService();
+                        final shelf = await api.awsShelfLookup(qrCodeResult);
+                        final String shopId = (shelf['shop_id'] ?? '').toString();
+                        if (shopId.isEmpty) {
+                          throw Exception('Shelf lookup missing shop_id');
+                        }
+                        if (!context.mounted) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ShelfVerificationScreen(
+                              shelfId: qrCodeResult,
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Failed to open shelf: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(
