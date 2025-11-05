@@ -25,6 +25,7 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
 
   // --- Controllers ---
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _icController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _genderController = TextEditingController();
@@ -36,8 +37,8 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
 
   @override
   void dispose() {
-    // (All your dispose methods remain the same)
     _nameController.dispose();
+    _emailController.dispose();
     _icController.dispose();
     _phoneController.dispose();
     _addressLine1Controller.dispose();
@@ -128,6 +129,7 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
         // 5. Package all data into a Map
         final userDetails = {
           'name': _nameController.text,
+          'email': _emailController.text,
           'icNumber': _icController.text,
           'gender': _genderController.text,
           'religion': _religionController.text,
@@ -355,6 +357,25 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                prefixIcon: Icon(Icons.email_outlined),
+                hintText: 'example@email.com',
+              ),
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter your email';
+                }
+                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                  return 'Please enter a valid email address';
+                }
+                return null;
+              },
             ),
             const SizedBox(height: 16),
             TextFormField(
