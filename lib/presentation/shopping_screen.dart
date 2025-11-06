@@ -49,6 +49,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       await _apiService.awsRemoteStart(
         shopId: widget.shopId,
         shelfId: widget.shelfId,
+        customerId: widget.customerId,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

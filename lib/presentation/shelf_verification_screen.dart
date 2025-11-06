@@ -129,7 +129,10 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         );
       }
       final String sessionId = const Uuid().v4();
-      final String? customerId = (user['userId'] ?? user['id'])?.toString();
+      // Get customer ID from the user object - using 'shp_user_id' as per Lambda response
+      final String? customerId = user['shp_user_id']?.toString();
+      print('User object: $user');
+      print('Using customerId: $customerId');
       final startRes = await _apiService.awsRemoteStart(
         shopId: shopId,
         shelfId: widget.shelfId,
@@ -169,7 +172,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
             userName: (shopperName ?? user['name']).toString(),
             shelfName: _shelfDetails?['shelf_name'] ?? widget.shelfId,
             shopId: shopId,
-            customerId: (user['userId'] ?? user['id'] ?? '').toString(),
+            customerId: user['shp_user_id']?.toString() ?? '',
             userEmail: shopperEmail ?? ((user['email'] ?? '').toString().isEmpty ? null : (user['email'] ?? '').toString()),
             userPhone: shopperPhone ?? ((user['phone'] ?? '').toString().isEmpty ? null : (user['phone'] ?? '').toString()),
           ),
