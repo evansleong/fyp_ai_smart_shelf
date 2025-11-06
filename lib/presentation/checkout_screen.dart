@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/services/checkout_service.dart';
 import 'success_screen.dart';
+import '../core/services/api_service.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final String shopId;
@@ -59,6 +60,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         email: _emailCtrl.text.trim(),
       );
       if (!mounted) return;
+      // Best-effort stop monitoring on checkout completion
+      try {
+        await ApiService().mobileStop(shopId: widget.shopId, shelfId: widget.shelfId);
+      } catch (_) {}
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(

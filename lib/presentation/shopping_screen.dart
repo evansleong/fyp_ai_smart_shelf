@@ -66,6 +66,9 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   @override
   void dispose() {
     _cartTimer?.cancel();
+    try {
+      _apiService.mobileStop(shopId: widget.shopId, shelfId: widget.shelfId);
+    } catch (_) {}
     super.dispose();
   }
 
@@ -144,29 +147,37 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        // --- MODIFIED: Use the shelf name fetched from the API ---
-        title: Text(_apiShelfName),
-        // --- END MODIFIED ---
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Center(
-              child: Text(
-                'Hi, ${widget.userName}',
-                style: const TextStyle(fontSize: 16),
+    return WillPopScope(
+      onWillPop: () async {
+        try {
+          await _apiService.mobileStop(shopId: widget.shopId, shelfId: widget.shelfId);
+        } catch (_) {}
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          // --- MODIFIED: Use the shelf name fetched from the API ---
+          title: Text(_apiShelfName),
+          // --- END MODIFIED ---
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16.0),
+              child: Center(
+                child: Text(
+                  'Hi, ${widget.userName}',
+                  style: const TextStyle(fontSize: 16),
+                ),
               ),
             ),
-          ),
-          IconButton(
-            tooltip: 'Trigger Again',
-            icon: const Icon(Icons.replay_circle_filled_outlined),
-            onPressed: _triggerAgain,
-          ),
-        ],
+            IconButton(
+              tooltip: 'Trigger Again',
+              icon: const Icon(Icons.replay_circle_filled_outlined),
+              onPressed: _triggerAgain,
+            ),
+          ],
+        ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 

@@ -204,7 +204,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
   Future<void> _stopShelfMonitoring() async {
     if (!_isMonitoring || _shopId == null) return;
     try {
-      await _apiService.awsMobileStop(shopId: _shopId!, shelfId: widget.shelfId);
+      await _apiService.mobileStop(shopId: _shopId!, shelfId: widget.shelfId);
     } catch (_) {
       // swallow errors on back for smoother UX
     } finally {

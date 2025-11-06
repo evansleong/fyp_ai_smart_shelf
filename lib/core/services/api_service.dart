@@ -274,24 +274,26 @@ class ApiService {
   }
 
   // POST /camera/mobile-stop/{shop_id}/{shelf_id}
-  Future<Map<String, dynamic>> awsMobileStop({
+  /// Fire-and-forget variant with short timeout and quick retries.
+  /// Does not throw; best-effort only.
+  Future<void> mobileStop({
     required String shopId,
     required String shelfId,
   }) async {
     final uri = Uri.parse('$_awsProdBase/camera/mobile-stop/$shopId/$shelfId');
-    final res = await http.post(uri, headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    });
-    final body = jsonDecode(res.body);
-    if (res.statusCode == 200) {
-      return body as Map<String, dynamic>;
-    } else if (res.statusCode == 404) {
-      throw Exception(body['error'] ?? 'Shelf not found');
-    } else if (res.statusCode == 400) {
-      throw Exception(body['error'] ?? 'Invalid request');
-    } else {
-      throw Exception(body['error'] ?? 'Server error');
+    int attempts = 0;
+    while (attempts < 2) {
+      attempts++;
+      try {
+        final res = await http
+            .post(uri, headers: {
+              'Accept': 'application/json',
+            })
+            .timeout(const Duration(seconds: 6));
+        if (res.statusCode >= 200 && res.statusCode < 300) return;
+      } catch (_) {
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
     }
   }
 }
