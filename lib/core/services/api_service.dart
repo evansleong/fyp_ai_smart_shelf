@@ -100,14 +100,26 @@ class ApiService {
   /// Throws an exception if the network call fails.
   /// Returns the decoded user map on success.
   Future<Map<String, dynamic>> verifyFace(String imageBase64,
-      {String action = 'login'}) async {
+      {String action = 'login', String? shelfId}) async {
+    // <-- 1. ADD shelfId HERE
+
+    // Create the request body
+    final Map<String, dynamic> body = {
+      // <-- 2. CREATE THIS MAP
+      'imageBase64': imageBase64,
+      'action': action,
+    };
+
+    // Add shelfId ONLY if it's provided
+    if (shelfId != null) {
+      // <-- 3. ADD THIS IF-STATEMENT
+      body['shelfId'] = shelfId;
+    }
+
     final response = await http.post(
       Uri.parse('$_baseUrl/search-face'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'imageBase64': imageBase64,
-        'action': action, 
-      }),
+      body: jsonEncode(body), // <-- 4. SEND THE NEW body
     );
 
     final responseBody = jsonDecode(response.body);
@@ -116,7 +128,8 @@ class ApiService {
       // Return just the user object
       return responseBody['user'];
     } else {
-      final String errorMessage = responseBody['error'] ?? 'An unknown error occurred.';
+      final String errorMessage =
+          responseBody['error'] ?? 'An unknown error occurred.';
       throw Exception(errorMessage);
     }
   }

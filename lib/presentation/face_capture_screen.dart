@@ -37,7 +37,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
     final String? imagePath = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.face,
+          scanMode: CameraScanMode.faceRegister,
         ),
       ),
     );

@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-// Enum to define the purpose of the camera scanner
+// --- MODIFIED ENUM ---
 enum CameraScanMode {
   qrCode, // For scanning QR codes
   ocr, // For taking a picture for Text Recognition (IC)
-  face, // For capturing a user's face
+  faceRegister, // For capturing a user's face (no time limit)
+  faceVerify, // For capturing a user's face (20s time limit)
 }
+// --- END MODIFIED ENUM ---
 
 enum LivenessChallengeType {
   lookStraight,
@@ -74,6 +76,11 @@ class _CameraScreenState extends State<CameraScreen> {
   int _currentChallengeIndex = 0;
   bool _isBlinking = false; // Helper to count discrete blinks
 
+  // --- NEW: Timer state for verification mode ---
+  Timer? _livenessTimer;
+  int _countdownSeconds = 10;
+  // --- END NEW ---
+
   @override
   void initState() {
     super.initState();
@@ -85,8 +92,10 @@ class _CameraScreenState extends State<CameraScreen> {
     setState(() {
       _isPermissionGranted = status.isGranted;
       if (_isPermissionGranted) {
+        // --- MODIFIED: Check for both face modes ---
         if (widget.scanMode == CameraScanMode.ocr ||
-            widget.scanMode == CameraScanMode.face) {
+            widget.scanMode == CameraScanMode.faceRegister ||
+            widget.scanMode == CameraScanMode.faceVerify) {
           _initializeManualCamera();
         }
       }
@@ -95,19 +104,14 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // Helper to generate a random challenge list
   void _generateChallenges() {
-    // Clear old challenges and reset index
+    // ... (This function remains unchanged)
     _challenges.clear();
     _currentChallengeIndex = 0;
     _livenessInstruction = 'Position your face in the oval';
-
-    // 1. Always start with looking straight
     _challenges.add(LivenessChallenge(
       LivenessChallengeType.lookStraight,
       'Please look straight',
     ));
-
-    // 2. Add the Head Tilt challenge FIRST.
-    // The *direction* is still random.
     if (Random().nextBool()) {
       _challenges.add(LivenessChallenge(
         LivenessChallengeType.turnLeft,
@@ -119,9 +123,6 @@ class _CameraScreenState extends State<CameraScreen> {
         'Slowly turn your head right',
       ));
     }
-
-    // 3. Add the Blink challenge SECOND.
-    // The *count* is still random.
     int blinkCount = Random().nextInt(2) + 2; // 2 or 3
     _challenges.add(LivenessChallenge(
       LivenessChallengeType.blink,
@@ -134,7 +135,9 @@ class _CameraScreenState extends State<CameraScreen> {
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
 
-    if (widget.scanMode == CameraScanMode.face) {
+    // --- MODIFIED: Use front camera for both face modes ---
+    if (widget.scanMode == CameraScanMode.faceRegister ||
+        widget.scanMode == CameraScanMode.faceVerify) {
       _selectedCamera = cameras.firstWhere(
         (camera) => camera.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
@@ -145,6 +148,7 @@ class _CameraScreenState extends State<CameraScreen> {
         orElse: () => cameras.first,
       );
     }
+    // --- END MODIFIED ---
 
     _manualCameraController = CameraController(
       _selectedCamera!,
@@ -158,8 +162,9 @@ class _CameraScreenState extends State<CameraScreen> {
       _isManualCameraInitialized = true;
     });
 
-    // Start image stream for face liveness
-    if (widget.scanMode == CameraScanMode.face) {
+    // --- MODIFIED: Start stream for both face modes ---
+    if (widget.scanMode == CameraScanMode.faceRegister ||
+        widget.scanMode == CameraScanMode.faceVerify) {
       // 1. Generate the random challenge list
       _generateChallenges();
 
@@ -173,11 +178,57 @@ class _CameraScreenState extends State<CameraScreen> {
 
       // 3. Start the stream
       _manualCameraController!.startImageStream(_processCameraImage);
+
+      // --- NEW: Start timer ONLY for verification mode ---
+      if (widget.scanMode == CameraScanMode.faceVerify) {
+        _startLivenessTimer();
+      }
+      // --- END NEW ---
     }
   }
 
+  // --- NEW: Timer logic ---
+  void _startLivenessTimer() {
+    _livenessTimer?.cancel(); // Cancel any old timers
+    _livenessTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_countdownSeconds <= 0) {
+        timer.cancel();
+        // Time's up!
+        if (!mounted) return;
+
+        debugPrint("--- Liveness Timer Expired ---");
+
+        // Stop all processing
+        _manualCameraController?.stopImageStream();
+        _faceDetector?.close();
+        _faceDetector = null;
+
+        // Show a snackbar error
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification timed out. Please try again.'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 4),
+          ),
+        );
+
+        // Pop the screen (returning null)
+        Navigator.of(context).pop();
+      } else {
+        // Update UI with countdown
+        if (mounted) {
+          setState(() {
+            _countdownSeconds--;
+          });
+        }
+      }
+    });
+  }
+  // --- END NEW ---
+
   // Process camera stream for liveness
   Future<void> _processCameraImage(CameraImage image) async {
+    // ... (This entire function remains unchanged)
     if (_faceDetector == null || _isProcessingFrame) return;
 
     setState(() {
@@ -296,6 +347,7 @@ class _CameraScreenState extends State<CameraScreen> {
   // Helper to convert CameraImage to InputImage
   InputImage? _inputImageFromCameraImage(
       CameraImage image, CameraDescription cameraDescription) {
+    // ... (This function remains unchanged)
     try {
       final writeBuffer = WriteBuffer();
       for (final Plane plane in image.planes) {
@@ -327,6 +379,10 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // Called when liveness succeeds
   Future<void> _onLivenessSuccess() async {
+    // --- NEW: Cancel timer on success ---
+    _livenessTimer?.cancel();
+    // --- END NEW ---
+
     // Stop all processing
     if (_manualCameraController == null) return;
     await _manualCameraController!.stopImageStream();
@@ -349,6 +405,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   // This is now ONLY for OCR mode
   Future<void> _onCapturePressed() async {
+    // ... (This function remains unchanged)
     if (widget.scanMode != CameraScanMode.ocr) return;
 
     if (_manualCameraController == null ||
@@ -366,6 +423,10 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
+    // --- NEW: Cancel timer on dispose ---
+    _livenessTimer?.cancel();
+    // --- END NEW ---
+
     // Stop stream and close detector
     _manualCameraController?.stopImageStream();
     _faceDetector?.close();
@@ -385,21 +446,18 @@ class _CameraScreenState extends State<CameraScreen> {
 
     // UI elements specifically for Face Liveness mode
     Widget faceLivenessUI = const SizedBox.shrink();
-    if (widget.scanMode == CameraScanMode.face) {
-      // Calculate oval size
+
+    // --- MODIFIED: Show for both face modes ---
+    if (widget.scanMode == CameraScanMode.faceRegister ||
+        widget.scanMode == CameraScanMode.faceVerify) {
+      // ... (Oval size logic is the same)
       final double ovalWidth = MediaQuery.of(context).size.width * 0.8;
       final double ovalHeight = ovalWidth * 1.25;
       final Size ovalSize = Size(ovalWidth, ovalHeight);
-
-      // Calculate progress
       final double progress = _challenges.isEmpty
           ? 0.0
           : _currentChallengeIndex / _challenges.length;
-
-      // Determine border color
       final Color borderColor = progress > 0.01 ? Colors.green : Colors.white;
-
-      // Get screen center
       final screenCenterY = MediaQuery.of(context).size.height / 2;
 
       faceLivenessUI = Stack(
@@ -426,6 +484,30 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
           ),
+          // --- NEW: Countdown Timer UI ---
+          if (widget.scanMode == CameraScanMode.faceVerify)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 20,
+              right: 20,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  '$_countdownSeconds s',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          // --- END NEW ---
+
           // Liveness Instruction (below oval)
           Positioned(
             // Position it below the oval
@@ -446,11 +528,12 @@ class _CameraScreenState extends State<CameraScreen> {
         ],
       );
     }
+    // --- END MODIFIED ---
 
     // UI elements for OCR mode
     Widget ocrUI = const SizedBox.shrink();
     if (widget.scanMode == CameraScanMode.ocr) {
-      // --- This is the old _buildGuideBox logic, just for OCR ---
+      // ... (This UI logic remains unchanged)
       final double boxWidth = MediaQuery.of(context).size.width * 0.9;
       final double boxHeight = 220; // Rectangle for IC card
       ocrUI = Stack(
@@ -488,7 +571,7 @@ class _CameraScreenState extends State<CameraScreen> {
     // UI elements for QR mode
     Widget qrUI = const SizedBox.shrink();
     if (widget.scanMode == CameraScanMode.qrCode) {
-      // --- This is the old _buildGuideBox logic, just for QR ---
+      // ... (This UI logic remains unchanged)
       final double boxWidth = MediaQuery.of(context).size.width * 0.8;
       qrUI = Stack(
         alignment: Alignment.center,
@@ -523,7 +606,9 @@ class _CameraScreenState extends State<CameraScreen> {
           scannerWidget,
 
           // 2. The specific UI for the current mode
-          if (widget.scanMode == CameraScanMode.face)
+          // --- MODIFIED: Check for both face modes ---
+          if (widget.scanMode == CameraScanMode.faceRegister ||
+              widget.scanMode == CameraScanMode.faceVerify)
             faceLivenessUI
           else if (widget.scanMode == CameraScanMode.ocr)
             ocrUI
@@ -551,8 +636,8 @@ class _CameraScreenState extends State<CameraScreen> {
         return MobileScanner(
           controller: _qrScannerController,
           onDetect: (capture) {
-            if (_isProcessing) return; // Don't process if already processing
-
+            // ... (QR detect logic is unchanged)
+            if (_isProcessing) return;
             final List<Barcode> barcodes = capture.barcodes;
             if (barcodes.isNotEmpty && barcodes.first.rawValue != null) {
               setState(() {
@@ -564,20 +649,18 @@ class _CameraScreenState extends State<CameraScreen> {
           },
         );
 
-      // Stack OCR and Face cases
+      // --- MODIFIED: Stack all manual camera cases ---
       case CameraScanMode.ocr:
-      case CameraScanMode.face:
+      case CameraScanMode.faceRegister:
+      case CameraScanMode.faceVerify:
         if (!_isManualCameraInitialized) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        // --- MODIFIED: This scaling logic ensures the preview covers the full screen ---
+        // --- (Scaling logic is unchanged) ---
         final size = MediaQuery.of(context).size;
-        // Calculate the scale to fill the screen (cover)
         var scale =
             size.aspectRatio * _manualCameraController!.value.aspectRatio;
-
-        // Ensure it's always >= 1 (e.g., scale up, not down)
         if (scale < 1) scale = 1 / scale;
 
         return Transform.scale(
@@ -626,6 +709,7 @@ class _CameraScreenState extends State<CameraScreen> {
 // 🎨 --- NEW WIDGET ---
 // This class draws the semi-transparent overlay with an oval cutout
 class OverlayPainter extends CustomPainter {
+  // ... (This class remains unchanged)
   final Size cutoutSize;
   final Color borderColor;
   final double borderWidth;
@@ -646,37 +730,23 @@ class OverlayPainter extends CustomPainter {
       width: cutoutSize.width,
       height: cutoutSize.height,
     );
-
-    // Paint for the semi-transparent overlay
     final overlayPaint = Paint()..color = Colors.black.withOpacity(0.7);
-
-    // Paint for the oval border
     final borderPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = borderWidth;
-
-    // Paint for the progress ring
     final progressPaint = Paint()
       ..color = Colors.green
       ..style = PaintingStyle.stroke
       ..strokeWidth = borderWidth + 2 // Make it slightly thicker
       ..strokeCap = StrokeCap.round; // Rounded ends
-
-    // This path combines the full-screen rectangle and subtracts the oval
     final overlayPath = Path.combine(
       PathOperation.difference,
       Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
       Path()..addOval(ovalRect),
     );
-
-    // Draw the overlay
     canvas.drawPath(overlayPath, overlayPaint);
-
-    // Draw the border
     canvas.drawOval(ovalRect, borderPaint);
-
-    // Draw the progress arc
     if (progress > 0) {
       canvas.drawArc(
         ovalRect,

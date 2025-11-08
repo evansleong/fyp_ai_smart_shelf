@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:io';
-
 import '../core/widgets/camera_screen.dart';
 import 'shopping_screen.dart';
-import '../core/services/api_service.dart'; // IMPORT
+import '../core/services/api_service.dart'; 
 import 'package:uuid/uuid.dart';
 
 class ShelfVerificationScreen extends StatefulWidget {
@@ -65,7 +64,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
     final String? imagePath = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.face,
+          scanMode: CameraScanMode.faceVerify,
         ),
       ),
     );
@@ -83,24 +82,13 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
       // 'user' map now contains {'userId', 'name', 'religion'}
       // This calls your 'search_face_lambda.py'
-      final user = await _apiService.verifyFace(imageBase64, action: "unlock");
+      final user = await _apiService.verifyFace(imageBase64, action: "unlock", shelfId: widget.shelfId,);
 
       // 2. --- NEW: Get Shelf and User data for the check ---
       // This is where the 'religion' value from your selected code is used
       final String? userReligion = user['religion'];
-      final String? shelfStatus = _shelfDetails?['halal_status'];
 
-      print('User Religion: $userReligion, Shelf Status: $shelfStatus');
-
-      // 3. --- NEW: Implement the Access Rule ---
-      if (userReligion == 'Muslim' && shelfStatus == 'Non-Halal') {
-        _showError(
-            'Access Denied: Your profile does not permit access to Non-Halal shelves.');
-        return; // Stop execution
-      }
-      // --- END NEW ---
-
-      // 4. Optionally fetch full shopper profile from carts API (DynamoDB)
+      // 3. Optionally fetch full shopper profile from carts API (DynamoDB)
       final String? shopperId = (user['userId'] ?? user['id'])?.toString();
       String? shopperEmail;
       String? shopperPhone;

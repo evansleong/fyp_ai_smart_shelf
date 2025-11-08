@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../core/model/product_model.dart'; // 👈 IMPORT
-import '../core/services/api_service.dart'; // 👈 IMPORT
+import '../core/model/product_model.dart'; 
+import '../core/services/api_service.dart'; 
 import '../core/model/cart_model.dart';
 import 'cart_screen.dart';
 
 class ShoppingScreen extends StatefulWidget {
   final String shelfId;
   final String userName;
-  final String shelfName; // This is passed from the previous screen
+  final String shelfName; 
   final String shopId;
   final String? customerId;
   final String? userEmail;

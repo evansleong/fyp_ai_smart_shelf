@@ -23,7 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final String? imagePath = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.face,
+          scanMode: CameraScanMode.faceVerify,
         ),
       ),
     );
