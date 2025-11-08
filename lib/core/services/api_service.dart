@@ -99,11 +99,15 @@ class ApiService {
 
   /// Throws an exception if the network call fails.
   /// Returns the decoded user map on success.
-  Future<Map<String, dynamic>> verifyFace(String imageBase64) async {
+  Future<Map<String, dynamic>> verifyFace(String imageBase64,
+      {String action = 'login'}) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/search-face'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'imageBase64': imageBase64}),
+      body: jsonEncode({
+        'imageBase64': imageBase64,
+        'action': action, 
+      }),
     );
 
     final responseBody = jsonDecode(response.body);
@@ -112,7 +116,8 @@ class ApiService {
       // Return just the user object
       return responseBody['user'];
     } else {
-      throw Exception(responseBody['error'] ?? 'Face not recognized.');
+      final String errorMessage = responseBody['error'] ?? 'An unknown error occurred.';
+      throw Exception(errorMessage);
     }
   }
 
@@ -285,11 +290,9 @@ class ApiService {
     while (attempts < 2) {
       attempts++;
       try {
-        final res = await http
-            .post(uri, headers: {
-              'Accept': 'application/json',
-            })
-            .timeout(const Duration(seconds: 6));
+        final res = await http.post(uri, headers: {
+          'Accept': 'application/json',
+        }).timeout(const Duration(seconds: 6));
         if (res.statusCode >= 200 && res.statusCode < 300) return;
       } catch (_) {
         await Future.delayed(const Duration(milliseconds: 300));

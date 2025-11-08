@@ -110,7 +110,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 final imageUrl = transaction['imageUrl'] as String?;
                 
                 // Get data for the simplified subtitle
-                final shelf = transaction['shelf'] ?? 'Unknown Shelf';
+                final paymentMethod = transaction['payment_method'] ?? 'N/A';
                 final time = transaction['time'] ?? 'No Time'; // <-- Get time
 
                 return Card(
@@ -154,7 +154,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     
                     // --- MODIFIED: Subtitle is now 'Shelf • Time' ---
                     subtitle: Text(
-                      '$shelf • $time', // Line 1: Shelf & Time
+                      '$paymentMethod • $time', // Line 1: Shelf & Time
                       style: TextStyle(color: Colors.grey.shade600, height: 1.4),
                     ),
                     

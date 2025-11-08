@@ -83,7 +83,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
       // 'user' map now contains {'userId', 'name', 'religion'}
       // This calls your 'search_face_lambda.py'
-      final user = await _apiService.verifyFace(imageBase64);
+      final user = await _apiService.verifyFace(imageBase64, action: "unlock");
 
       // 2. --- NEW: Get Shelf and User data for the check ---
       // This is where the 'religion' value from your selected code is used
