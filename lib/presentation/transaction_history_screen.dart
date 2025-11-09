@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'welcome_screen.dart';
 import '../core/services/api_service.dart';
-import '../core/services/location_service.dart';
 import 'transaction_details_screen.dart';
 import '../core/widgets/camera_screen.dart';
 import 'shelf_verification_screen.dart';
-import 'profile_screen.dart'; // <-- 1. IMPORT YOUR NEW SCREEN
+import 'profile_screen.dart';
+import 'search_shelves_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String shpUserId;
@@ -24,7 +23,6 @@ class TransactionHistoryScreen extends StatefulWidget {
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   final ApiService _apiService = ApiService();
-  final LocationService _locationService = LocationService();
   late Future<List<dynamic>> _transactionsFuture;
 
   // --- 2. ADD STATE FOR USER PROFILE ---
@@ -130,242 +128,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
   }
 
-  Future<void> _findAndShowNearbyShelves() async {
-    if (_isFindingNearby) return; // Prevent double-taps
-
-    setState(() {
-      _isFindingNearby = true;
-    });
-
-    // Show a loading snackbar
-    final messenger = ScaffoldMessenger.of(context);
-    final loadingSnackbar = SnackBar(
-      content: Row(
-        children: const [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-          SizedBox(width: 16),
-          Text('Finding nearby shelves...'),
-        ],
-      ),
-      duration: const Duration(minutes: 1), // Will be hidden manually
-      behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.only(bottom: 80.0, left: 16.0, right: 16.0),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
-    );
-    messenger.showSnackBar(loadingSnackbar);
-
-    try {
-      // 1. Get location
-      final Position position = await _locationService.getCurrentLocation();
-
-      // 2. Call API
-      final List<dynamic> nearbyShops =
-          await _apiService.findNearbyShelves(
-        position.latitude,
-        position.longitude,
-      );
-
-      messenger.hideCurrentSnackBar(); // Hide loading
-
-      if (!mounted) return;
-
-      if (nearbyShops.isEmpty) {
-        // Show a "not found" snackbar
-        messenger.showSnackBar(
-          SnackBar(
-            content: const Text('No nearby shelves found.'),
-            backgroundColor: Colors.blueGrey,
-            behavior: SnackBarBehavior.floating,
-            margin:
-                const EdgeInsets.only(bottom: 80.0, left: 16.0, right: 16.0),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.0)),
-          ),
-        );
-        return;
-      }
-
-      // 3. Show results in a bottom sheet
-      _showNearbyShelvesDialog(nearbyShops);
-    } catch (e) {
-      messenger.hideCurrentSnackBar(); // Hide loading
-      if (mounted) {
-        // Show error snackbar
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text('Error finding shelves: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            margin:
-                const EdgeInsets.only(bottom: 80.0, left: 16.0, right: 16.0),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.0)),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isFindingNearby = false;
-        });
-      }
-    }
-  }
-
-  void _showNearbyShelvesDialog(List<dynamic> shops) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // Allow sheet to be taller
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        // Use a stateful builder to manage loading state inside the sheet
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            bool isVerifyingShelf = false;
-
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.5, // Start at 50% height
-              minChildSize: 0.3,
-              maxChildSize: 0.8, // Allow up to 80%
-              builder: (_, scrollController) {
-                return Column(
-                  children: [
-                    // --- Handle Bar ---
-                    Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.symmetric(vertical: 12.0),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2.0),
-                      ),
-                    ),
-                    // --- Title ---
-                    Text(
-                      'Nearby Shelves',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    // --- Scrollable List ---
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: shops.length,
-                        itemBuilder: (context, index) {
-                          final shop = shops[index];
-                          final shelves =
-                              shop['shelves'] as List<dynamic>? ?? [];
-
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // --- Shop Header ---
-                              Padding(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                                child: Text(
-                                  "${shop['shop_name']} (${shop['distance_km']} km)",
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              // --- List of Shelves for this shop ---
-                              ...shelves.map((shelf) {
-                                final shelfId =
-                                    shelf['shelf_id']?.toString() ?? '';
-                                final shelfName =
-                                    shelf['shelf_name']?.toString() ??
-                                        'Unnamed Shelf';
-                                final shelfLocation =
-                                    shelf['shelf_location']?.toString() ??
-                                        'No location';
-
-                                return ListTile(
-                                  leading: const Icon(Icons.shelves),
-                                  title: Text(shelfName),
-                                  subtitle: Text(shelfLocation),
-                                  trailing: (isVerifyingShelf)
-                                      ? const SizedBox(
-                                          width: 24,
-                                          height: 24,
-                                          child: CircularProgressIndicator(
-                                              strokeWidth: 3))
-                                      : const Icon(Icons.chevron_right),
-                                  onTap: (isVerifyingShelf || shelfId.isEmpty)
-                                      ? null
-                                      : () async {
-                                          // --- Shelf Tap Handler ---
-                                          setModalState(() {
-                                            isVerifyingShelf = true;
-                                          });
-                                          try {
-                                            // Verify shelf exists (mirroring QR flow)
-                                            await _apiService
-                                                .awsShelfLookup(shelfId);
-
-                                            if (!mounted) return;
-                                            Navigator.of(context)
-                                                .pop(); // Close bottom sheet
-                                            Navigator.of(context).push(
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    ShelfVerificationScreen(
-                                                  shelfId: shelfId,
-                                                ),
-                                              ),
-                                            );
-                                          } catch (e) {
-                                            if (!mounted) return;
-                                            Navigator.of(context)
-                                                .pop(); // Close bottom sheet
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                    'Failed to open shelf: $e'),
-                                                backgroundColor: Colors.red,
-                                                behavior:
-                                                    SnackBarBehavior.floating,
-                                                margin: const EdgeInsets.only(
-                                                    bottom: 80.0,
-                                                    left: 16.0,
-                                                    right: 16.0),
-                                                shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                            12.0)),
-                                              ),
-                                            );
-                                          } finally {
-                                            // No need to reset state, sheet is closing
-                                          }
-                                        },
-                                );
-                              }).toList(),
-                              if (index < shops.length - 1)
-                                const Divider(indent: 16, endIndent: 16),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -374,11 +136,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         actions: [
           // --- 7. ADDED: Nearby Shelves Button ---
           IconButton(
-            icon: Icon(_isFindingNearby
-                ? Icons.location_searching // Show loading icon
-                : Icons.location_on_outlined),
-            tooltip: 'Nearby Shelves',
-            onPressed: _isFindingNearby ? null : _findAndShowNearbyShelves,
+            icon: const Icon(Icons.search), // Changed icon
+            tooltip: 'Search Shelves', // Changed tooltip
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const SearchShelvesScreen(),
+                ),
+              );
+            },
           ),
           // --- END ---
           IconButton(

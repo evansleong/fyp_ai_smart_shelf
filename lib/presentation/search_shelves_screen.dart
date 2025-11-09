@@ -67,7 +67,7 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
   /// 1. Auto-detects user's location and finds nearby shelves
   Future<void> _runAutoDetect() async {
     if (_isLoading) return;
-    
+
     _searchController.clear(); // Clear any search text
     _searchFocusNode.unfocus(); // Hide keyboard
 
@@ -96,7 +96,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
           _isLoading = false;
           _errorMessage = e.toString();
         });
-        ScaffoldMessenger.of(context).showSnackBar(_buildErrorSnackbar(e.toString()));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(_buildErrorSnackbar(e.toString()));
       }
     }
   }
@@ -112,16 +113,28 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
       _errorMessage = null;
       _searchResults = null; // Clear old results
     });
+    final messenger = ScaffoldMessenger.of(context); // For errors
 
     try {
+      // --- 1. GET USER'S CURRENT LOCATION FIRST ---
+      final Position position = await _locationService.getCurrentLocation();
+
+      // --- 2. CALL API with query AND location ---
       final List<dynamic> nearbyShelves =
-          await _apiService.searchNearbyShelvesByText(query);
+          await _apiService.searchNearbyShelvesByText(
+        query,
+        position.latitude, // Pass user's lat
+        position.longitude, // Pass user's lon
+      );
 
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _searchResults = nearbyShelves;
-        _searchTitle = "Results for \"$query\"";
+        // Get the name of the geocoded area (e.g., "Kuala Lumpur")
+        _searchTitle = nearbyShelves.isNotEmpty
+            ? "Results near \"${nearbyShelves[0]['search_origin']}\""
+            : "Results for \"$query\"";
       });
     } catch (e) {
       if (mounted) {
@@ -129,7 +142,7 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
           _isLoading = false;
           _errorMessage = e.toString();
         });
-        ScaffoldMessenger.of(context).showSnackBar(_buildErrorSnackbar(e.toString()));
+        messenger.showSnackBar(_buildErrorSnackbar(e.toString()));
       }
     }
   }
@@ -142,7 +155,7 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
       // We must verify the shelf exists before navigating
       await _apiService.awsShelfLookup(shelfId);
       if (!mounted) return;
-      
+
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ShelfVerificationScreen(shelfId: shelfId),
@@ -150,7 +163,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(_buildErrorSnackbar(e.toString()));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(_buildErrorSnackbar(e.toString()));
       }
     }
   }
@@ -211,7 +225,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
 
     if (_searchResults == null) {
       // Initial state before anything has loaded (should be rare)
-      return const Center(child: Text('Search for a shelf or use auto-detect.'));
+      return const Center(
+          child: Text('Search for a shelf or use auto-detect.'));
     }
 
     if (_searchResults!.isEmpty) {
@@ -243,7 +258,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
             itemBuilder: (context, index) {
               final shelf = _searchResults![index];
               final shelfId = shelf['shelf_id']?.toString() ?? '';
-              final shelfName = shelf['shelf_name']?.toString() ?? 'Unnamed Shelf';
+              final shelfName =
+                  shelf['shelf_name']?.toString() ?? 'Unnamed Shelf';
               final shopName = shelf['shop_name']?.toString() ?? 'Unknown Shop';
               final distance = shelf['distance_km']?.toString() ?? '??';
               final location = shelf['shelf_location'] ?? '...';
@@ -260,7 +276,7 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
                     fontSize: 14,
                   ),
                 ),
-                onTap: () => _navigateToShelf(shelfId),
+                onTap: null,
               );
             },
           ),

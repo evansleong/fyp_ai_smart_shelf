@@ -287,7 +287,44 @@ class ApiService {
       // Return the list of shop objects
       return responseBody['shelves'] as List<dynamic>;
     } else {
-      throw Exception(responseBody['message'] ?? 'Failed to find nearby shelves.');
+      throw Exception(
+          responseBody['message'] ?? 'Failed to find nearby shelves.');
+    }
+  }
+
+  /// Fetches a list of the 5 closest shelf objects based on a text query.
+  Future<List<dynamic>> searchNearbyShelvesByText(
+    String query,
+    double latitude,
+    double longitude,
+  ) async {
+    // It calls the same /shelf endpoint
+    final uri = Uri.parse('$_awsProdBase/shelf');
+    final payload = {
+      'action': 'search_shelves_by_text', // But with a different action
+      'params': {
+        'query': query,
+        'latitude': latitude,
+        'longitude': longitude,
+      }
+    };
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(payload),
+    );
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && responseBody['success'] == true) {
+      return responseBody['shelves'] as List<dynamic>;
+    } else {
+      throw Exception(
+          responseBody['message'] ?? 'Failed to find shelves for "$query".');
     }
   }
 
