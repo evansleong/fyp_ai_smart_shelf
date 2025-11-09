@@ -258,6 +258,39 @@ class ApiService {
     }
   }
 
+  Future<List<dynamic>> findNearbyShelves(
+    double latitude,
+    double longitude,
+  ) async {
+    // Note: This calls _baseUrl, which points to your shelf-service lambda
+    final uri = Uri.parse('$_awsProdBase/shelf');
+    final payload = {
+      'action': 'find_nearby_shelves',
+      'params': {
+        'latitude': latitude,
+        'longitude': longitude,
+      }
+    };
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: jsonEncode(payload),
+    );
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200 && responseBody['success'] == true) {
+      // Return the list of shop objects
+      return responseBody['shelves'] as List<dynamic>;
+    } else {
+      throw Exception(responseBody['message'] ?? 'Failed to find nearby shelves.');
+    }
+  }
+
   // POST /camera/remote-start/{shop_id}/{shelf_id}
   Future<Map<String, dynamic>> awsRemoteStart({
     required String shopId,

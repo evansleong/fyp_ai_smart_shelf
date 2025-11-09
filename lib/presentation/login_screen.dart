@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart'; 
+import 'package:shared_preferences/shared_preferences.dart'; 
+import 'transaction_history_screen.dart';
+//import 'home_screen.dart'; 
 import '../core/services/api_service.dart';
 import '../core/widgets/camera_screen.dart';
 import 'dart:io';
@@ -46,6 +48,16 @@ class _LoginScreenState extends State<LoginScreen> {
       print(user);
       // --- END DEBUG ---
 
+      // Get the user ID from the response
+      final String shpUserId = user['shp_user_id']; 
+      if (shpUserId.isEmpty) {
+        throw Exception("User ID was null or empty.");
+      }
+      
+      // Get storage instance and save the ID
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('shp_user_id', shpUserId); 
+
       // 3. Handle success
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -57,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 4. Navigate to HomeScreen
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomeScreen(user: user)),
+        MaterialPageRoute(builder: (_) => TransactionHistoryScreen(shpUserId: shpUserId)),
       );
     } catch (e) {
       // 5. Handle errors (e.g., face not recognized)
