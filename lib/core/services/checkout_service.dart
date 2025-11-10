@@ -13,6 +13,7 @@ Future<void> checkout({
   required String name,
   required String phone,
   required String email,
+  required double amount,
 }) async {
   final createIntentResp = await http.post(
     Uri.parse('$paymentsApiBase/payments/create-intent'),
@@ -20,6 +21,7 @@ Future<void> checkout({
     body: jsonEncode({
       'customer_id': customerId,
       'shop_id': shopId,
+      'amount': (amount * 100).round(),
     }),
   );
   if (createIntentResp.statusCode != 200) {

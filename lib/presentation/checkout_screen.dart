@@ -12,6 +12,7 @@ class CheckoutScreen extends StatefulWidget {
   final String? prefillName;
   final String? prefillPhone;
   final String? prefillEmail;
+  final double cartTotal;
 
   const CheckoutScreen({
     super.key,
@@ -23,6 +24,7 @@ class CheckoutScreen extends StatefulWidget {
     this.prefillName,
     this.prefillPhone,
     this.prefillEmail,
+    required this.cartTotal,
   });
 
   @override
@@ -55,6 +57,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await checkout(
         customerId: widget.customerId,
         shopId: widget.shopId,
+        amount: widget.cartTotal,
         name: _nameCtrl.text.trim(),
         phone: _phoneCtrl.text.trim(),
         email: _emailCtrl.text.trim(),

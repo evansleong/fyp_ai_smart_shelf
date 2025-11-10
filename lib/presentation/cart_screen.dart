@@ -108,7 +108,14 @@ class _CartScreenState extends State<CartScreen> {
 
   Widget _buildBottomBar() {
     if (_loading || _cart == null || _cart!.items.isEmpty) return const SizedBox.shrink();
-    final total = _cart!.items.fold<double>(0.0, (sum, it) => sum + it.price * it.quantity);
+    // Compute total with the same price fallback logic used in the list items
+    final Map<String, Product> byId = { for (final p in _products) p.id: p };
+    final computed = _cart!.items.fold<double>(0.0, (sum, it) {
+      final p = byId[it.productId];
+      final price = p?.price ?? it.price;
+      return sum + price * it.quantity;
+    });
+    final total = (_cart!.total > 0) ? _cart!.total : computed;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -131,6 +138,7 @@ class _CartScreenState extends State<CartScreen> {
                       prefillName: widget.userName,
                       prefillPhone: widget.userPhone,
                       prefillEmail: widget.userEmail,
+                      cartTotal: total,
                     ),
                   ),
                 );

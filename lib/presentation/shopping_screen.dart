@@ -356,12 +356,13 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       for (final p in _products) p.id: p,
     };
 
-    // Compute display total using enriched prices when available
-    final double displayTotal = _cart!.items.fold(0.0, (sum, it) {
+    // Compute display total using enriched prices when available, but prefer server total if present
+    final double computedTotal = _cart!.items.fold(0.0, (sum, it) {
       final p = productById[it.productId];
       final price = p?.price ?? it.price;
       return sum + price * it.quantity;
     });
+    final double displayTotal = (_cart!.total > 0) ? _cart!.total : computedTotal;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
