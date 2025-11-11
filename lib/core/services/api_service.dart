@@ -382,4 +382,42 @@ class ApiService {
       }
     }
   }
+
+  // POST /camera/session-pause/{shop_id}/{shelf_id}
+  Future<void> pauseSession({
+    required String shopId,
+    required String shelfId,
+  }) async {
+    final uri = Uri.parse('$_awsProdBase/camera/session-pause/$shopId/$shelfId');
+    final res = await http.post(uri, headers: {
+      'Accept': 'application/json',
+    });
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final body = jsonDecode(res.body);
+      throw Exception(body['error'] ?? 'Failed to pause session');
+    }
+  }
+
+  // POST /camera/session-resume/{shop_id}/{shelf_id}
+  Future<void> resumeSession({
+    required String shopId,
+    required String shelfId,
+  }) async {
+    final uri = Uri.parse('$_awsProdBase/camera/session-resume/$shopId/$shelfId');
+    final res = await http.post(uri, headers: {
+      'Accept': 'application/json',
+    });
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      final body = jsonDecode(res.body);
+      throw Exception(body['error'] ?? 'Failed to resume session');
+    }
+  }
+
+  // Convenience alias when ending session from app
+  Future<void> endSession({
+    required String shopId,
+    required String shelfId,
+  }) async {
+    await mobileStop(shopId: shopId, shelfId: shelfId);
+  }
 }

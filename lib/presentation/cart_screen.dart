@@ -117,15 +117,44 @@ class _CartScreenState extends State<CartScreen> {
     });
     final total = (_cart!.total > 0) ? _cart!.total : computed;
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Container
+        (
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
+            ),
+          ],
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16),
+            topRight: Radius.circular(16),
+          ),
+        ),
         child: Row(
           children: [
             Expanded(
-              child: Text('Total: RM ${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Total', style: TextStyle(color: Colors.grey)),
+                  Text(
+                    'RM ${total.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
+              ),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                try {
+                  await _api.pauseSession(shopId: widget.shopId, shelfId: widget.shelfId);
+                } catch (_) {}
+                if (!mounted) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(

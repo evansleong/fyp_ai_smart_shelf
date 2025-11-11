@@ -40,8 +40,6 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   late String _apiShelfName;
   String _shelfStatus = '';
   Cart? _cart;
-  bool _cartLoading = true;
-  String? _cartError;
   Timer? _cartTimer;
 
   Future<void> _triggerAgain() async {
@@ -66,9 +64,6 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   @override
   void dispose() {
     _cartTimer?.cancel();
-    try {
-      _apiService.mobileStop(shopId: widget.shopId, shelfId: widget.shelfId);
-    } catch (_) {}
     super.dispose();
   }
 
@@ -82,21 +77,11 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       if (body['success'] == true && body['cart'] is Map<String, dynamic>) {
         setState(() {
           _cart = Cart.fromJson(body['cart'] as Map<String, dynamic>);
-          _cartError = null;
-          _cartLoading = false;
-        });
-      } else {
-        setState(() {
-          _cartError = (body['message'] ?? 'Failed to load cart').toString();
-          _cartLoading = false;
         });
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _cartError = e.toString();
-        _cartLoading = false;
-      });
+      setState(() {});
     }
   }
 
@@ -149,10 +134,32 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        try {
-          await _apiService.mobileStop(shopId: widget.shopId, shelfId: widget.shelfId);
-        } catch (_) {}
-        return true;
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              title: const Text('End session?'),
+              content: const Text('You will stop detection and end your shopping session.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  child: const Text('End Session'),
+                ),
+              ],
+            );
+          },
+        );
+        if (shouldExit == true) {
+          try {
+            await _apiService.endSession(shopId: widget.shopId, shelfId: widget.shelfId);
+          } catch (_) {}
+          return true;
+        }
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -177,6 +184,111 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
           ],
         ),
         body: _buildBody(),
+        floatingActionButton: (_cart != null && _cart!.items.isNotEmpty)
+            ? Builder(
+                builder: (context) {
+                  // compute display total similar to _buildCartSection
+                  final Map<String, Product> productById = {
+                    for (final p in _products) p.id: p,
+                  };
+                  final double computedTotal = _cart!.items.fold(0.0, (sum, it) {
+                    final p = productById[it.productId];
+                    final price = p?.price ?? it.price;
+                    return sum + price * it.quantity;
+                  });
+                  final double displayTotal = (_cart!.total > 0) ? _cart!.total : computedTotal;
+                  return FloatingActionButton.extended(
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: false,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        builder: (ctx) {
+                          final items = _cart!.items;
+                          return SafeArea(
+                            top: false,
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.shopping_cart_outlined),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Cart Summary',
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        'RM ${displayTotal.toStringAsFixed(2)}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ...items.take(3).map((it) {
+                                    final p = productById[it.productId];
+                                    final name = p?.name ?? it.name;
+                                    final price = p?.price ?? it.price;
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(child: Text(name, overflow: TextOverflow.ellipsis)),
+                                          Text('x${it.quantity} • RM ${(price * it.quantity).toStringAsFixed(2)}'),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                  if (items.length > 3)
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text('+ ${items.length - 3} more item(s)', style: const TextStyle(color: Colors.grey)),
+                                    ),
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(ctx); // close sheet
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => CartScreen(
+                                              shopId: widget.shopId,
+                                              customerId: widget.customerId!,
+                                              shelfId: widget.shelfId,
+                                              userName: widget.userName,
+                                              shelfName: widget.shelfName,
+                                              userEmail: widget.userEmail,
+                                              userPhone: widget.userPhone,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.arrow_forward_rounded),
+                                      label: const Text('Go to Cart'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    icon: const Icon(Icons.shopping_cart),
+                    label: Text('Cart \u2022 RM ${displayTotal.toStringAsFixed(2)}'),
+                  );
+                },
+              )
+            : null,
       ),
     );
   }
@@ -315,121 +427,9 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
             ),
           ),
         if (widget.customerId != null && widget.customerId!.isNotEmpty)
-          Column(
-            children: [
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: _buildCartSection(),
-              ),
-            ],
-          ),
+          const SizedBox.shrink(),
       ],
     );
   }
 
-  Widget _buildCartSection() {
-    if (_cartLoading) {
-      return const Align(
-        alignment: Alignment.centerLeft,
-        child: Text('Loading cart...'),
-      );
-    }
-    if (_cartError != null) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          _cartError!,
-          style: const TextStyle(color: Colors.red),
-        ),
-      );
-    }
-    if (_cart == null || _cart!.items.isEmpty) {
-      return const Align(
-        alignment: Alignment.centerLeft,
-        child: Text('Your cart is empty'),
-      );
-    }
-
-    // Build a lookup for product metadata to enrich cart items with names/prices
-    final Map<String, Product> productById = {
-      for (final p in _products) p.id: p,
-    };
-
-    // Compute display total using enriched prices when available, but prefer server total if present
-    final double computedTotal = _cart!.items.fold(0.0, (sum, it) {
-      final p = productById[it.productId];
-      final price = p?.price ?? it.price;
-      return sum + price * it.quantity;
-    });
-    final double displayTotal = (_cart!.total > 0) ? _cart!.total : computedTotal;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Your Cart',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ..._cart!.items.map(
-          (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 6.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    (productById[item.productId]?.name ?? item.name),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Text(
-                  '${item.quantity} x RM ${(productById[item.productId]?.price ?? item.price).toStringAsFixed(2)}',
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Total',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(
-              'RM ${displayTotal.toStringAsFixed(2)}',
-              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () {
-              if (widget.customerId == null || widget.customerId!.isEmpty) return;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CartScreen(
-                    shopId: widget.shopId,
-                    customerId: widget.customerId!,
-                    shelfId: widget.shelfId,
-                    userName: widget.userName,
-                    shelfName: widget.shelfName,
-                    userEmail: widget.userEmail,
-                    userPhone: widget.userPhone,
-                  ),
-                ),
-              );
-            },
-            child: const Text('Go to Cart'),
-          ),
-        ),
-      ],
-    );
-  }
 }

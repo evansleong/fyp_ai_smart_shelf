@@ -62,11 +62,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         phone: _phoneCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
       );
-      if (!mounted) return;
-      // Best-effort stop monitoring on checkout completion
+      // Resume session after successful payment
       try {
-        await ApiService().mobileStop(shopId: widget.shopId, shelfId: widget.shelfId);
+        await ApiService().resumeSession(shopId: widget.shopId, shelfId: widget.shelfId);
       } catch (_) {}
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -101,48 +101,82 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _emailCtrl.text = widget.prefillEmail!;
     }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                TextFormField(
-                  controller: _nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Full name'),
-                  readOnly: widget.prefillName != null && widget.prefillName!.isNotEmpty,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _phoneCtrl,
-                  decoration: const InputDecoration(labelText: 'Phone'),
-                  readOnly: widget.prefillPhone != null && widget.prefillPhone!.isNotEmpty,
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _emailCtrl,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Required';
-                    if (!v.contains('@')) return 'Invalid email';
-                    return null;
-                  },
-                  readOnly: widget.prefillEmail != null && widget.prefillEmail!.isNotEmpty,
-                ),
-                const Spacer(),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _loading ? null : _pay,
-                    child: _loading ? const CircularProgressIndicator() : const Text('Pay Now'),
+    return WillPopScope(
+      onWillPop: () async {
+        try {
+          await ApiService().resumeSession(shopId: widget.shopId, shelfId: widget.shelfId);
+        } catch (_) {}
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Checkout')),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('Total', style: TextStyle(color: Colors.grey)),
+                        const Spacer(),
+                        Text('RM ${widget.cartTotal.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _nameCtrl,
+                    decoration: const InputDecoration(labelText: 'Full name'),
+                    readOnly: widget.prefillName != null && widget.prefillName!.isNotEmpty,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _phoneCtrl,
+                    decoration: const InputDecoration(labelText: 'Phone'),
+                    readOnly: widget.prefillPhone != null && widget.prefillPhone!.isNotEmpty,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _emailCtrl,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return 'Required';
+                      if (!v.contains('@')) return 'Invalid email';
+                      return null;
+                    },
+                    readOnly: widget.prefillEmail != null && widget.prefillEmail!.isNotEmpty,
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _pay,
+                      child: _loading
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Text('Pay RM ${widget.cartTotal.toStringAsFixed(2)}'),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
