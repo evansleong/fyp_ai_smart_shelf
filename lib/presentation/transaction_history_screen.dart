@@ -1,12 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'welcome_screen.dart';
+import 'package:intl/intl.dart';
 import '../core/services/api_service.dart';
 import 'transaction_details_screen.dart';
-import '../core/widgets/camera_screen.dart';
-import 'shelf_verification_screen.dart';
-import 'profile_screen.dart';
-import 'search_shelves_screen.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String shpUserId;
@@ -25,107 +20,15 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   final ApiService _apiService = ApiService();
   late Future<List<dynamic>> _transactionsFuture;
 
-  // --- 2. ADD STATE FOR USER PROFILE ---
-  Map<String, dynamic>? _userProfileData;
-  bool _isLoadingProfile = true;
-  bool _isFindingNearby = false;
-  // --- END ---
-
   @override
   void initState() {
     super.initState();
-    // Load both transactions and user profile when the screen opens
-    _transactionsFuture = _apiService.getCustomerOrders(widget.shpUserId);
-    _loadUserProfile(); // <-- 3. CALL NEW FUNCTION
-  }
-
-  // --- 4. ADD NEW FUNCTION TO FETCH USER DATA ---
-  Future<void> _loadUserProfile() async {
-    try {
-      final user =
-          await _apiService.getShopperInfo(shpUserId: widget.shpUserId);
-      if (mounted) {
-        setState(() {
-          _userProfileData = user;
-          _isLoadingProfile = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoadingProfile = false;
-        });
-        // Show a non-blocking error
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Could not load user profile: $e'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating, // Use floating behavior
-            margin:
-                const EdgeInsets.only(bottom: 80.0, left: 16.0, right: 16.0),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12.0),
-            ),
-          ),
-        );
-      }
-    }
-  }
-  // --- END ---
-
-  Future<void> _logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('shp_user_id');
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-      (route) => false,
-    );
-  }
-
-  Future<void> _scanAndNavigateToShelf() async {
-    final qrCodeResult = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.qrCode,
-        ),
-      ),
-    );
-
-    if (qrCodeResult != null && context.mounted) {
-      try {
-        final shelf = await _apiService.awsShelfLookup(qrCodeResult);
-        final String shopId = (shelf['shop_id'] ?? '').toString();
-        if (shopId.isEmpty) {
-          throw Exception('Shelf lookup missing shop_id');
-        }
-        if (!mounted) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ShelfVerificationScreen(
-              shelfId: qrCodeResult,
-            ),
-          ),
-        );
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to open shelf: $e'),
-              backgroundColor: Colors.red,
-              // --- ADDED: Fix for snackbar pushing nav bar ---
-              behavior: SnackBarBehavior.floating,
-              margin:
-                  const EdgeInsets.only(bottom: 80.0, left: 16.0, right: 16.0),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12.0),
-              ),
-              // --- END ---
-            ),
-          );
-        }
-      }
-    }
+    // --- TEMPORARY TEST --- KAH YUNG DATA
+    _transactionsFuture =
+        _apiService.getCustomerOrders("9a3e4a12-0652-441d-959b-584bd07ed05a");
+    
+    // Use the actual user ID passed from HomeScreen
+    //_transactionsFuture = _apiService.getCustomerOrders(widget.shpUserId);
   }
 
   @override
@@ -133,31 +36,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transaction History'),
-        actions: [
-          // --- 7. ADDED: Nearby Shelves Button ---
-          IconButton(
-            icon: const Icon(Icons.search), // Changed icon
-            tooltip: 'Search Shelves', // Changed tooltip
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const SearchShelvesScreen(),
-                ),
-              );
-            },
-          ),
-          // --- END ---
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _logout,
-          ),
-        ],
       ),
+      // --- This is the FutureBuilder logic moved from HomeScreen ---
       body: FutureBuilder<List<dynamic>>(
         future: _transactionsFuture,
         builder: (context, snapshot) {
-          // ... (Your FutureBuilder logic is unchanged)
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -184,46 +67,115 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             );
           }
 
+          // --- Sorting Logic ---
           final transactions = snapshot.data!;
+          transactions.sort((a, b) {
+            try {
+              final String aDateStr = a['date'] ?? '';
+              final String aTimeStr = a['time'] ?? '';
+              final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
+              final DateTime aDateTime =
+                  inputFormat.parse('$aDateStr $aTimeStr');
+
+              final String bDateStr = b['date'] ?? '';
+              final String bTimeStr = b['time'] ?? '';
+              final DateTime bDateTime =
+                  inputFormat.parse('$bDateStr $bTimeStr');
+
+              return bDateTime.compareTo(aDateTime);
+            } catch (e) {
+              return 0;
+            }
+          });
+
+          // --- Grouping Logic ---
           final List<dynamic> groupedItems = [];
-          String? currentDateHeader;
+          String? currentMonthHeader;
+          final DateFormat headerFormat = DateFormat('MMMM yyyy');
 
           for (final transaction in transactions) {
-            final date = transaction['date'] ?? 'Unknown Date';
-            if (date != currentDateHeader) {
-              currentDateHeader = date;
-              groupedItems.add(date); // Add the date header
+            final String dateString = transaction['date'] ?? '';
+            String monthHeader = "UNKNOWN MONTH";
+            try {
+              final DateTime date = DateTime.parse(dateString);
+              monthHeader = headerFormat.format(date).toUpperCase();
+            } catch (e) {
+              if (dateString.isNotEmpty) {
+                monthHeader = dateString;
+              }
             }
-            groupedItems.add(transaction); // Add the transaction item
+
+            if (monthHeader != currentMonthHeader) {
+              currentMonthHeader = monthHeader;
+              groupedItems.add(monthHeader);
+            }
+            groupedItems.add(transaction);
           }
 
+          // --- List Building Logic ---
           return ListView.builder(
             itemCount: groupedItems.length,
-            padding: const EdgeInsets.only(bottom: 80.0),
+            // Add padding for the last item
+            padding: const EdgeInsets.only(bottom: 24.0), 
             itemBuilder: (context, index) {
               final item = groupedItems[index];
 
-              // --- Date Header ---
+              // Monthly Header
               if (item is String) {
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                   child: Text(
-                    item,
+                    item.toUpperCase(),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: Colors.grey.shade700,
+                          letterSpacing: 0.5,
                         ),
                   ),
                 );
               }
 
-              // --- Transaction ListTile ---
+              // Transaction ListTile
               if (item is Map<String, dynamic>) {
                 final transaction = item;
+
+                // Amount
+                double amount = 0.0;
+                if (transaction['amount'] != null) {
+                  amount =
+                      double.tryParse(transaction['amount'].toString()) ?? 0.0;
+                }
+                final String displayAmount =
+                    '- RM ${amount.abs().toStringAsFixed(2)}';
+                const Color amountColor = Colors.red;
+
+                // Details
                 final imageUrl = transaction['imageUrl'] as String?;
                 final paymentMethod = transaction['payment_method'] ?? 'N/A';
-                final time = transaction['time'] ?? 'No Time';
 
+                // Date/Time Formatting
+                final String dateStr = transaction['date'] ?? '';
+                final String timeStr = transaction['time'] ?? '';
+                String displayTime;
+
+                if (dateStr.isNotEmpty && timeStr.isNotEmpty) {
+                  try {
+                    final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
+                    final outputFormat = DateFormat('dd/MM/yyyy hh:mm a');
+                    final DateTime parsedDateTime =
+                        inputFormat.parse('$dateStr $timeStr');
+                    displayTime = outputFormat.format(parsedDateTime);
+                  } catch (e) {
+                    displayTime =
+                        '${transaction['date']} ${transaction['time']}';
+                  }
+                } else {
+                  displayTime = transaction['time'] ?? 'No Time';
+                }
+
+                final String subtitleText = '$displayTime • $paymentMethod';
+
+                // The Card
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -232,8 +184,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
                     leading: SizedBox(
                       width: 56,
                       height: 56,
@@ -261,19 +213,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     ),
                     title: Text(
                       transaction['details'] ?? 'No Details',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     subtitle: Text(
-                      '$paymentMethod • $time',
+                      subtitleText,
                       style:
                           TextStyle(color: Colors.grey.shade600, height: 1.4),
                     ),
                     isThreeLine: false,
                     trailing: Text(
-                      '- RM ${transaction['amount'] ?? '0.00'}',
+                      displayAmount,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.red,
+                        color: amountColor,
                         fontSize: 16,
                       ),
                     ),
@@ -294,85 +247,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             },
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton.large(
-        onPressed: _scanAndNavigateToShelf,
-        child: const Icon(Icons.qr_code_scanner),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        elevation: 8.0,
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: <Widget>[
-            _buildNavButton(
-              icon: Icons.history,
-              label: 'History',
-              onPressed: () {
-                print("Already on History screen");
-              },
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 48),
-
-            // --- 5. MODIFY THE "PROFILE" BUTTON ---
-            _buildNavButton(
-              icon: Icons.person_outline,
-              label: 'Profile',
-              // Disable button while loading or if data failed to load
-              onPressed: (_isLoadingProfile || _userProfileData == null)
-                  ? null // This disables the InkWell
-                  : () {
-                      // Navigate to ProfileScreen with the fetched data
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              ProfileScreen(user: _userProfileData!),
-                        ),
-                      );
-                    },
-              // Show a faded color if disabled
-              color: (_isLoadingProfile || _userProfileData == null)
-                  ? Colors.grey.shade400
-                  : null,
-            ),
-            // --- END ---
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- (Helper widget is unchanged) ---
-  Widget _buildNavButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed, // Changed to allow null
-    Color? color,
-  }) {
-    return InkWell(
-      onTap: onPressed,
-      borderRadius: BorderRadius.circular(24.0),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color ?? Colors.grey.shade700, size: 28.0),
-            const SizedBox(height: 2.0),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color ?? Colors.grey.shade700,
-                fontWeight: color != null ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

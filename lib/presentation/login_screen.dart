@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; 
-import 'transaction_history_screen.dart';
+import 'home_screen.dart';
 //import 'home_screen.dart'; 
 import '../core/services/api_service.dart';
 import '../core/widgets/camera_screen.dart';
@@ -69,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 4. Navigate to HomeScreen
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => TransactionHistoryScreen(shpUserId: shpUserId)),
+        MaterialPageRoute(builder: (_) => HomeScreen(shpUserId: shpUserId)),
       );
     } catch (e) {
       // 5. Handle errors (e.g., face not recognized)

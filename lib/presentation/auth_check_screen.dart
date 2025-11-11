@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'welcome_screen.dart';
-import 'transaction_history_screen.dart'; // Your main "home" screen
+import 'home_screen.dart'; // Your main "home" screen
 
 class AuthCheckScreen extends StatefulWidget {
   const AuthCheckScreen({super.key});
@@ -32,7 +32,7 @@ class _AuthCheckScreenState extends State<AuthCheckScreen> {
       // Navigate to the main app screen and remove all other screens
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => TransactionHistoryScreen(shpUserId: shpUserId),
+          builder: (_) => HomeScreen(shpUserId: shpUserId),
         ),
       );
     } else {

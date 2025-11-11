@@ -1,5 +1,3 @@
-// lib/screens/search_shelves_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../core/services/api_service.dart';
@@ -171,36 +169,39 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        // The Search Bar
-        title: TextField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          autofocus: false, // Don't open keyboard immediately
-          decoration: InputDecoration(
-            hintText: 'Search for shops or areas...',
-            prefixIcon: const Icon(Icons.search, size: 20),
-            filled: true,
-            fillColor: Colors.grey.shade200,
-            contentPadding: const EdgeInsets.symmetric(vertical: 0),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(30.0),
-              borderSide: BorderSide.none,
+    return Material(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              focusNode: _searchFocusNode,
+              autofocus: false,
+              decoration: InputDecoration(
+                hintText: 'Search for shops or areas...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.my_location),
+                  tooltip: 'My Location',
+                  onPressed: _isLoading ? null : _runAutoDetect,
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade200,
+                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30.0),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              onSubmitted: _runTextSearch,
             ),
           ),
-          onSubmitted: _runTextSearch,
-        ),
-        actions: [
-          // The "auto-detect" button
-          IconButton(
-            icon: const Icon(Icons.my_location),
-            tooltip: 'My Location',
-            onPressed: _isLoading ? null : _runAutoDetect,
+          Expanded(
+            child: _buildBody(),
           ),
         ],
       ),
-      body: _buildBody(),
     );
   }
 
@@ -238,7 +239,6 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
       );
     }
 
-    // --- We have results, show them in a list ---
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
