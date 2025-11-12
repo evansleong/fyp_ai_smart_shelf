@@ -213,8 +213,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // --- "Search" button ---
             _buildNavButton(
-              icon: Icons.search,
-              label: 'Search',
+              icon: Icons.shelves,
+              label: 'Shelf',
               onPressed: () {
                 setState(() {
                   _pageIndex = 1; // Switch to Search tab
