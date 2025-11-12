@@ -46,6 +46,17 @@ class SuccessScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.storefront, size: 16),
+                    const SizedBox(width: 6),
+                    Text('Shelf: ' + shelfName),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text('Hi, ' + userName, style: const TextStyle(color: Colors.grey)),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,

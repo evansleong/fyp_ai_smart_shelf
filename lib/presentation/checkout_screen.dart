@@ -117,6 +117,35 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               key: _formKey,
               child: Column(
                 children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.storefront, size: 16),
+                            const SizedBox(width: 6),
+                            Text(widget.shelfName),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: const [
+                          Icon(Icons.lock, size: 16, color: Colors.green),
+                          SizedBox(width: 6),
+                          Text('Secure payment'),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -165,6 +194,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     },
                     readOnly: widget.prefillEmail != null && widget.prefillEmail!.isNotEmpty,
                   ),
+                  const SizedBox(height: 8),
+                  if ((widget.prefillEmail?.isNotEmpty ?? false))
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Receipt will be sent to ${widget.prefillEmail}',
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                    ),
                   const Spacer(),
                   SizedBox(
                     width: double.infinity,

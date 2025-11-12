@@ -84,25 +84,111 @@ class _CartScreenState extends State<CartScreen> {
   Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_error != null) return Center(child: Text(_error!, style: const TextStyle(color: Colors.red)));
-    if (_cart == null || _cart!.items.isEmpty) return const Center(child: Text('Your cart is empty'));
+    if (_cart == null || _cart!.items.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.shopping_cart_outlined, size: 64, color: Colors.grey),
+              const SizedBox(height: 12),
+              const Text('Your cart is empty', style: TextStyle(fontSize: 18, color: Colors.grey)),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.storefront),
+                label: const Text('Browse shelf'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     final Map<String, Product> byId = { for (final p in _products) p.id: p };
+    final computedTotal = _cart!.items.fold<double>(0.0, (sum, it) {
+      final p = byId[it.productId];
+      final price = p?.price ?? it.price;
+      return sum + price * it.quantity;
+    });
+    final displayTotal = (_cart!.total > 0) ? _cart!.total : computedTotal;
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: _cart!.items.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final it = _cart!.items[i];
-        final p = byId[it.productId];
-        final name = p?.name ?? it.name;
-        final price = p?.price ?? it.price;
-        return ListTile(
-          title: Text(name),
-          subtitle: Text('x${it.quantity}'),
-          trailing: Text('RM ${(price * it.quantity).toStringAsFixed(2)}'),
-        );
-      },
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.shelfName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 4),
+                      Text('${_cart!.items.length} item(s)', style: const TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+                Text('RM ${displayTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            itemCount: _cart!.items.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              final it = _cart!.items[i];
+              final p = byId[it.productId];
+              final name = p?.name ?? it.name;
+              final price = p?.price ?? it.price;
+              return ListTile(
+                leading: p?.imageUrl != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          p!.imageUrl!,
+                          width: 56,
+                          height: 56,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stack) => Container(
+                            width: 56,
+                            height: 56,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.broken_image, size: 32, color: Colors.grey),
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.fastfood, size: 32, color: Colors.grey),
+                      ),
+                title: Text(name),
+                subtitle: Text('x${it.quantity} • RM ${price.toStringAsFixed(2)} each'),
+                trailing: Text('RM ${(price * it.quantity).toStringAsFixed(2)}'),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

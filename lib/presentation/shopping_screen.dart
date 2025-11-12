@@ -37,12 +37,14 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   // --- State ---
   bool _isLoading = true;
   List<Product> _products = [];
+  List<Product> _filteredProducts = [];
   String? _errorMessage;
   late String _apiShelfName;
   String _shelfStatus = '';
   Cart? _cart;
   Timer? _cartTimer;
   final List<Function()> _wsUnsubs = [];
+  final TextEditingController _searchCtrl = TextEditingController();
 
   Future<void> _triggerAgain() async {
     try {
@@ -72,6 +74,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       } catch (_) {}
     }
     webSocketService.disconnect();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -98,6 +101,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
     super.initState();
     _apiShelfName = widget.shelfName;
     _fetchShelfProducts();
+    _searchCtrl.addListener(_applyFilter);
     if (widget.customerId != null && widget.customerId!.isNotEmpty) {
       // Initial load via REST for baseline state
       _fetchCart();
@@ -144,6 +148,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       if (!mounted) return;
       setState(() {
         _products = productList.map((json) => Product.fromJson(json)).toList();
+        _filteredProducts = List<Product>.from(_products);
         _apiShelfName = apiShelfName;
         _shelfStatus = shelfStatus;
         _isLoading = false;
@@ -156,6 +161,17 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _applyFilter() {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      if (q.isEmpty) {
+        _filteredProducts = List<Product>.from(_products);
+      } else {
+        _filteredProducts = _products.where((p) => p.name.toLowerCase().contains(q)).toList();
+      }
+    });
   }
 
   @override
@@ -224,6 +240,38 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
               onPressed: _triggerAgain,
             ),
           ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Search items on this shelf',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: (_searchCtrl.text.isNotEmpty)
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _applyFilter();
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Theme.of(context).colorScheme.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
         body: _buildBody(),
         floatingActionButton: (_cart != null && _cart!.items.isNotEmpty)
@@ -394,20 +442,50 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         if (_products.isEmpty)
           const Expanded(
             child: Center(
-              child: Text(
-                'This shelf is currently empty.',
-                style: TextStyle(fontSize: 18, color: Colors.grey),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.inventory_2_outlined, size: 56, color: Colors.grey),
+                  SizedBox(height: 12),
+                  Text(
+                    'This shelf is currently empty.',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (_filteredProducts.isEmpty)
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.search_off, size: 56, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No items match "${_searchCtrl.text}"',
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      _applyFilter();
+                    },
+                    child: const Text('Clear search'),
+                  ),
+                ],
               ),
             ),
           )
         else
-          // --- MODIFIED: Product list is now in an Expanded widget ---
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(8.0), // Add padding to list
-              itemCount: _products.length,
+              padding: const EdgeInsets.all(8.0),
+              itemCount: _filteredProducts.length,
               itemBuilder: (context, index) {
-                final product = _products[index];
+                final product = _filteredProducts[index];
                 return Card(
                   margin:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -416,11 +494,10 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   clipBehavior:
-                      Clip.antiAlias, // Ensures image corners are rounded
+                      Clip.antiAlias,
                   child: ListTile(
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    // --- MODIFIED: Added product image ---
                     leading: product.imageUrl != null
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(8.0),
@@ -429,7 +506,6 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                               width: 56,
                               height: 56,
                               fit: BoxFit.cover,
-                              // Error handling for broken images
                               errorBuilder: (context, error, stackTrace) =>
                                   Container(
                                 width: 56,
@@ -447,14 +523,11 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                             child: const Icon(Icons.fastfood,
                                 size: 32, color: Colors.grey),
                           ),
-                    // --- END MODIFIED ---
                     title: Text(
                       product.name,
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    // --- MODIFIED: Show shelf-specific stock from 'quantity' ---
                     subtitle: Text('Stock on shelf: ${product.stock}'),
-                    // --- END MODIFIED ---
                     trailing: Text(
                       'RM ${product.price.toStringAsFixed(2)}',
                       style: const TextStyle(
