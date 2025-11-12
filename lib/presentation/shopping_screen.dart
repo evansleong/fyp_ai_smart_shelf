@@ -4,6 +4,7 @@ import '../core/model/product_model.dart';
 import '../core/services/api_service.dart'; 
 import '../core/model/cart_model.dart';
 import 'cart_screen.dart';
+import '../core/services/websocket_service.dart';
 
 class ShoppingScreen extends StatefulWidget {
   final String shelfId;
@@ -31,7 +32,7 @@ class ShoppingScreen extends StatefulWidget {
 
 class _ShoppingScreenState extends State<ShoppingScreen> {
   // --- Service ---
-  final ApiService _apiService = ApiService(); // 👈 USE
+  final ApiService _apiService = ApiService(); // 
 
   // --- State ---
   bool _isLoading = true;
@@ -41,6 +42,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   String _shelfStatus = '';
   Cart? _cart;
   Timer? _cartTimer;
+  final List<Function()> _wsUnsubs = [];
 
   Future<void> _triggerAgain() async {
     try {
@@ -64,6 +66,12 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   @override
   void dispose() {
     _cartTimer?.cancel();
+    for (final unsub in _wsUnsubs) {
+      try {
+        unsub();
+      } catch (_) {}
+    }
+    webSocketService.disconnect();
     super.dispose();
   }
 
@@ -91,8 +99,28 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
     _apiShelfName = widget.shelfName;
     _fetchShelfProducts();
     if (widget.customerId != null && widget.customerId!.isNotEmpty) {
+      // Initial load via REST for baseline state
       _fetchCart();
-      _cartTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fetchCart());
+      // Connect WebSocket for live updates
+      webSocketService.connect(customerId: widget.customerId!, shopId: widget.shopId);
+      // Listen for cart updates
+      _wsUnsubs.add(
+        webSocketService.on('message', (dynamic message) {
+          try {
+            if (message is Map && message['type'] == 'cart_updated') {
+              final data = message['data'];
+              if (mounted && data is Map<String, dynamic>) {
+                setState(() {
+                  _cart = Cart.fromJson(data);
+                });
+              }
+            }
+          } catch (_) {}
+        }),
+      );
+      // Optional: react to disconnects if you want UI feedback later
+      _wsUnsubs.add(webSocketService.on('disconnect', (_) {}));
+      _wsUnsubs.add(webSocketService.on('connect', (_) {}));
     }
   }
 
@@ -156,6 +184,20 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         if (shouldExit == true) {
           try {
             await _apiService.endSession(shopId: widget.shopId, shelfId: widget.shelfId);
+          } catch (_) {}
+          // Explicitly disconnect WebSocket when exiting the shelf
+          try {
+            webSocketService.send({
+              'action': 'unsubscribe',
+              'customer_id': widget.customerId,
+              'shop_id': widget.shopId,
+              'shelf_id': widget.shelfId,
+            });
+            // Give the socket a brief moment to flush the message
+            await Future.delayed(const Duration(milliseconds: 200));
+          } catch (_) {}
+          try {
+            webSocketService.disconnect();
           } catch (_) {}
           return true;
         }
