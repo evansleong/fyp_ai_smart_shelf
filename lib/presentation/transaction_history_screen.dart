@@ -186,33 +186,33 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 8),
-                    leading: SizedBox(
-                      width: 56,
-                      height: 56,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8.0),
-                        child: (imageUrl != null)
-                            ? Image.network(
-                                imageUrl,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Colors.grey.shade200,
-                                    child: const Icon(
-                                        Icons.inventory_2_outlined,
-                                        color: Colors.grey),
-                                  );
-                                },
-                              )
-                            : Container(
-                                color: Colors.grey.shade200,
-                                child: const Icon(Icons.inventory_2_outlined,
-                                    color: Colors.grey),
-                              ),
-                      ),
-                    ),
+                    //leading: SizedBox(
+                    //  width: 56,
+                    //  height: 56,
+                    //  child: ClipRRect(
+                    //    borderRadius: BorderRadius.circular(8.0),
+                    //    child: (imageUrl != null)
+                    //        ? Image.network(
+                    //            imageUrl,
+                    //            fit: BoxFit.cover,
+                    //            errorBuilder: (context, error, stackTrace) {
+                    //              return Container(
+                    //                color: Colors.grey.shade200,
+                    //                child: const Icon(
+                    //                    Icons.inventory_2_outlined,
+                    //                    color: Colors.grey),
+                    //              );
+                    //            },
+                    //          )
+                    //        : Container(
+                    //            color: Colors.grey.shade200,
+                    //            child: const Icon(Icons.inventory_2_outlined,
+                    //                color: Colors.grey),
+                    //          ),
+                    //  ),
+                    //),
                     title: Text(
-                      transaction['details'] ?? 'No Details',
+                      transaction['shop_name'] ?? transaction['details'] ?? 'No Details',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, fontSize: 16),
                     ),
