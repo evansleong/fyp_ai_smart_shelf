@@ -25,7 +25,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     super.initState();
     // --- TEMPORARY TEST --- KAH YUNG DATA
     _transactionsFuture =
-        _apiService.getCustomerOrders("9a3e4a12-0652-441d-959b-584bd07ed05a");
+        _apiService.getCustomerOrdersHistory("9a3e4a12-0652-441d-959b-584bd07ed05a");
     
     // Use the actual user ID passed from HomeScreen
     //_transactionsFuture = _apiService.getCustomerOrders(widget.shpUserId);

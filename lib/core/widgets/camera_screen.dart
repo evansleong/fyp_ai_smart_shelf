@@ -6,6 +6,8 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../services/yolo_detector_services.dart';
+import 'dart:io';
 
 // --- MODIFIED ENUM ---
 enum CameraScanMode {
@@ -52,10 +54,12 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   // Controller for manual camera operations (used for OCR and Face)
   CameraController? _manualCameraController;
+  YoloDetectorService? _detector;
+  CameraDescription? _selectedCamera;
   bool _isManualCameraInitialized = false;
   bool _isPermissionGranted = false;
-  // Store selected camera for orientation
-  CameraDescription? _selectedCamera;
+  bool _isDetecting = false;
+  bool _isModelLoaded = false;
 
   // Controller for QR code scanning
   final MobileScannerController _qrScannerController = MobileScannerController(
@@ -162,7 +166,6 @@ class _CameraScreenState extends State<CameraScreen> {
       _isManualCameraInitialized = true;
     });
 
-    // --- MODIFIED: Start stream for both face modes ---
     if (widget.scanMode == CameraScanMode.faceRegister ||
         widget.scanMode == CameraScanMode.faceVerify) {
       // 1. Generate the random challenge list
@@ -183,7 +186,32 @@ class _CameraScreenState extends State<CameraScreen> {
       if (widget.scanMode == CameraScanMode.faceVerify) {
         _startLivenessTimer();
       }
-      // --- END NEW ---
+    } else if (widget.scanMode == CameraScanMode.ocr) {
+      // --- NEW: Load the YOLO model for OCR mode ---
+      debugPrint("OCR Mode: Initializing YOLO detector...");
+      _detector = YoloDetectorService();
+
+      final bool modelLoadedSuccessfully = await _detector!.loadModel();
+
+      if (mounted) {
+        setState(() {
+          // Only set _isModelLoaded if it was a success
+          _isModelLoaded = modelLoadedSuccessfully;
+        });
+
+        if (!modelLoadedSuccessfully) {
+          _showOcrError('Failed to load IC detector. Please restart the app.');
+        }
+      }
+
+      await _detector!.loadModel();
+      debugPrint("YOLO model initialized.");
+
+      if (mounted) {
+        setState(() {
+          _isModelLoaded = true; // Tell the UI the model is ready!
+        });
+      }
     }
   }
 
@@ -404,21 +432,87 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 
   // This is now ONLY for OCR mode
+  // This is now ONLY for OCR mode
+  // This is now ONLY for OCR mode
   Future<void> _onCapturePressed() async {
-    // ... (This function remains unchanged)
     if (widget.scanMode != CameraScanMode.ocr) return;
 
+    // Guard clause (check if model is loaded)
     if (_manualCameraController == null ||
-        !_manualCameraController!.value.isInitialized) {
+        !_manualCameraController!.value.isInitialized ||
+        _detector == null ||
+        !_isModelLoaded ||
+        _isDetecting) {
+      if (!_isModelLoaded) {
+        debugPrint("Model is not loaded yet, please wait.");
+      }
       return;
     }
+
+    setState(() {
+      _isDetecting = true; // Show loading spinner
+    });
+
     try {
+      // 1. Take the picture
       final image = await _manualCameraController!.takePicture();
+      debugPrint("Picture taken: ${image.path}");
+
+      // 2. Run YOLO detection
+      debugPrint("Running YOLO detection...");
+      final BoundingBox? detectedBox = await _detector!.detectCard(image.path);
+
       if (!mounted) return;
-      Navigator.of(context).pop(image.path);
+
+      // 3. Check if a card was found
+      if (detectedBox != null) {
+        debugPrint(
+            "Card detected! Label: ${detectedBox.label}, Confidence: ${detectedBox.confidence}");
+        debugPrint(
+            "Bounding box: (${detectedBox.x}, ${detectedBox.y}, ${detectedBox.width}, ${detectedBox.height})");
+
+        // 4. Crop the image
+        final String? croppedImagePath =
+            await _detector!.cropImage(image.path, detectedBox);
+
+        if (croppedImagePath != null) {
+          debugPrint("Image cropped successfully: $croppedImagePath");
+          // SUCCESS - Pop with the cropped image path
+          Navigator.of(context).pop(croppedImagePath);
+        } else {
+          debugPrint("ERROR: Cropping failed");
+          _showOcrError(
+              'The detected card region is too small. Please move closer or ensure better lighting.');
+        }
+      } else {
+        debugPrint("No card detected in the image.");
+        _showOcrError(
+            'No IC card detected. Please:\n• Ensure the card is well-lit\n• Position it fully within the frame\n• Hold the camera steady');
+      }
     } catch (e) {
-      debugPrint("Error taking picture: $e");
+      debugPrint("ERROR during YOLO capture/crop: $e");
+      if (mounted) {
+        _showOcrError('An error occurred: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDetecting = false; // Hide loading spinner
+        });
+      }
     }
+  }
+
+  // --- 👇 ADD THIS NEW HELPER FUNCTION ---
+  void _showOcrError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
@@ -430,6 +524,7 @@ class _CameraScreenState extends State<CameraScreen> {
     // Stop stream and close detector
     _manualCameraController?.stopImageStream();
     _faceDetector?.close();
+    _detector?.dispose();
     _manualCameraController?.dispose();
     _qrScannerController.dispose();
     super.dispose();
@@ -560,8 +655,17 @@ class _CameraScreenState extends State<CameraScreen> {
           Positioned(
             bottom: 50,
             child: FloatingActionButton(
-              onPressed: _onCapturePressed,
-              child: const Icon(Icons.camera_alt),
+              // Disable the button if the model isn't loaded
+              onPressed: _isModelLoaded ? _onCapturePressed : null,
+              backgroundColor: _isModelLoaded ? null : Colors.grey[700],
+              child: _isDetecting
+                  ? const CircularProgressIndicator(
+                      color: Colors.white) // Shows spinner AFTER clicking
+                  : (!_isModelLoaded
+                      ? const CircularProgressIndicator(
+                          color: Colors.white) // Shows spinner WHILE loading
+                      : const Icon(Icons
+                          .camera_alt)), // Only shows camera icon when ready
             ),
           ),
         ],

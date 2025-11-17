@@ -258,6 +258,30 @@ class ApiService {
     }
   }
 
+  Future<List<dynamic>> getCustomerOrdersHistory(String customerId) async {
+    // This endpoint calls the SAME Lambda but WITH the query parameter
+    // to get the "history" formatted data.
+    final uri = Uri.parse('$_baseUrl/orders/$customerId').replace(
+      queryParameters: {'format': 'history'},
+    );
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    );
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return responseBody['orders'] as List<dynamic>;
+    } else {
+      throw Exception(responseBody['error'] ?? 'Failed to load order history.');
+    }
+  }
+
   Future<List<dynamic>> findNearbyShelves(
     double latitude,
     double longitude,
