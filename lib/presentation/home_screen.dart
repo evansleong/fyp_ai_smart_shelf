@@ -326,6 +326,7 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     }
 
     try {
+      // use KAH YUNG data first
       const String testCustomerId = "9a3e4a12-0652-441d-959b-584bd07ed05a";
       // 1. Fetch Orders
       final List<dynamic> orders =
