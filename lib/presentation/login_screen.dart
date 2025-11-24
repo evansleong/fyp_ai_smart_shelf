@@ -6,6 +6,7 @@ import '../core/services/api_service.dart';
 import '../core/widgets/camera_screen.dart';
 import 'dart:io';
 import 'dart:convert';
+import 'face_liveness_webview.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,44 +22,52 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // --- MODIFIED: This is now the face scan logic ---
   Future<void> _scanFaceAndLogin() async {
-    // 1. Navigate to CameraScreen
-    final String? imagePath = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.faceVerify,
-        ),
-      ),
-    );
-
-    if (imagePath == null || !mounted) return;
-
     setState(() {
       _isVerifying = true;
     });
 
     try {
-      // 2. Read image and call verification service
-      final imageBytes = await File(imagePath).readAsBytes();
-      final String imageBase64 = base64Encode(imageBytes);
-      final user =
-          await _apiService.verifyFace(imageBase64); // This is the login
+      // 1. Create Liveness Session
+      // Calls your Lambda to get a session ID from Tokyo
+      final String sessionId = await _apiService.createLivenessSession();
 
-      // --- ADDED THIS DEBUG PRINT ---
+      if (!mounted) return;
+
+      // 2. Open the WebView Bridge
+      final bool? isLivenessSuccessful = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FaceLivenessWebView(sessionId: sessionId),
+        ),
+      );
+
+      if (isLivenessSuccessful != true) {
+        throw Exception("Liveness check failed or was cancelled.");
+      }
+
+      // 3. Verify Result (Login)
+      // We pass 'LOGIN_APP' as a placeholder shelfId. 
+      // The backend defaults to action='login', so it won't trigger IoT.
+      final user = await _apiService.verifyLiveness(
+        sessionId: sessionId,
+        shelfId: 'LOGIN_APP', 
+      );
+
+      // --- DEBUG PRINT ---
       print('--- USER DATA FROM LOGIN ---');
       print(user);
-      // --- END DEBUG ---
 
-      // Get the user ID from the response
-      final String shpUserId = user['shp_user_id']; 
+      // 4. Process User Data & Login
+      final String shpUserId = (user['shp_user_id'] ?? user['userId'] ?? user['id'])?.toString() ?? '';
+      
       if (shpUserId.isEmpty) {
-        throw Exception("User ID was null or empty.");
+        throw Exception("User ID not found in database.");
       }
       
-      // Get storage instance and save the ID
+      // Save to SharedPreferences (Session Persistence)
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('shp_user_id', shpUserId); 
 
-      // 3. Handle success
+      // 5. Handle Success & Navigate
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -67,21 +76,22 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
 
-      // 4. Navigate to HomeScreen
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => HomeScreen(shpUserId: shpUserId)),
       );
+
     } catch (e) {
-      // 5. Handle errors (e.g., face not recognized)
+      // 6. Handle Errors
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Login Failed: ${e.toString()}'),
+          content: Text('Login Failed: ${e.toString().replaceAll("Exception:", "")}'),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
         ),
       );
     } finally {
-      // 6. Stop loading
+      // 7. Stop Loading
       if (mounted) {
         setState(() {
           _isVerifying = false;

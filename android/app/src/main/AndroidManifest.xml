@@ -4,11 +4,15 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.webkit.PermissionRequest" />
 
     <application
         android:label="fyp_ai_smart_shelf"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        android:hardwareAccelerated="true">  <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

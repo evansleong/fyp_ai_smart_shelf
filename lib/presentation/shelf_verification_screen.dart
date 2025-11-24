@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import '../core/widgets/camera_screen.dart';
 import 'shopping_screen.dart';
-import '../core/services/api_service.dart'; 
+import '../core/services/api_service.dart';
 import 'package:uuid/uuid.dart';
+import 'face_liveness_webview.dart';
 
 class ShelfVerificationScreen extends StatefulWidget {
   final String shelfId;
@@ -61,90 +62,96 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
   // --- REFACTORED: Uses ApiService ---
   Future<void> _captureAndVerifyFace() async {
-    final String? imagePath = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const CameraScreen(
-          scanMode: CameraScanMode.faceVerify,
-        ),
-      ),
-    );
-
-    if (imagePath == null || !mounted) return;
-
     setState(() {
       _isVerifying = true;
     });
 
     try {
-      // 1. Read image and call service
-      final imageBytes = await File(imagePath).readAsBytes();
-      final String imageBase64 = base64Encode(imageBytes);
+      // 1. Create Session (Call your new Lambda endpoint)
+      // You need to add createLivenessSession() to your ApiService
+      final String sessionId = await _apiService.createLivenessSession();
 
-      // 'user' map now contains {'userId', 'name', 'religion'}
-      // This calls your 'search_face_lambda.py'
-      final user = await _apiService.verifyFace(imageBase64, action: "unlock", shelfId: widget.shelfId,);
+      if (!mounted) return;
 
-      // 2. --- NEW: Get Shelf and User data for the check ---
-      // This is where the 'religion' value from your selected code is used
-      final String? userReligion = user['religion'];
+      // 2. Open the WebView Bridge
+      final bool? isLivenessSuccessful = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FaceLivenessWebView(sessionId: sessionId),
+        ),
+      );
 
-      // 3. Optionally fetch full shopper profile from carts API (DynamoDB)
-      final String? shopperId = (user['userId'] ?? user['id'])?.toString();
+      // If user cancelled or liveness failed
+      if (isLivenessSuccessful != true) {
+        throw Exception("Liveness check failed or was cancelled.");
+      }
+
+      // 3. Verify Result & Get User Data
+      // Call your new Lambda endpoint to verify session + search face
+      final user = await _apiService.verifyLiveness(
+        sessionId: sessionId,
+        shelfId: widget.shelfId,
+      );
+
+      // 4. --- EXISTING LOGIC RESUMES HERE ---
+
+      // Optionally fetch full shopper profile
+      final String? shopperId =
+          (user['userId'] ?? user['id'] ?? user['shp_user_id'])?.toString();
       String? shopperEmail;
       String? shopperPhone;
       String? shopperName;
+
       if (shopperId != null && shopperId.isNotEmpty) {
         try {
-          final shopper = await _apiService.getShopperInfo(shpUserId: shopperId);
+          final shopper =
+              await _apiService.getShopperInfo(shpUserId: shopperId);
           if (shopper != null) {
-            shopperEmail = (shopper['email'] ?? '').toString().isEmpty ? null : (shopper['email'] ?? '').toString();
-            shopperPhone = (shopper['phone'] ?? '').toString().isEmpty ? null : (shopper['phone'] ?? '').toString();
-            shopperName = (shopper['name'] ?? '').toString().isEmpty ? null : (shopper['name'] ?? '').toString();
+            shopperEmail = (shopper['email'] ?? '').toString();
+            shopperPhone = (shopper['phone'] ?? '').toString();
+            shopperName = (shopper['name'] ?? '').toString();
           }
-        } catch (_) {}
+        } catch (_) {
+          // Ignore cart errors, we have basic user info
+        }
       }
 
-      // 5. Trigger camera on the shelf device via AWS backend
-      final lookup = await _apiService.awsShelfLookup(widget.shelfId);
-      final String shopId = (lookup['shop_id'] ?? '').toString();
-      if (shopId.isEmpty) {
-        throw Exception('Shelf lookup missing shop_id');
+      // 5. Trigger Camera / Unlock Shelf
+      if (_shelfDetails == null) {
+        await _fetchShelfDetails();
       }
+
+      final String shopId = (_shelfDetails?['shop_id'] ?? '').toString();
+      if (shopId.isEmpty) throw Exception('Shelf lookup missing shop_id');
+
       _shopId = shopId;
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Starting shelf for shop $shopId…')),
         );
       }
-      final String sessionId = const Uuid().v4();
-      // Get customer ID from the user object - using 'shp_user_id' as per Lambda response
+
+      final String sessionUuid = const Uuid().v4();
       final String? customerId = user['shp_user_id']?.toString();
-      print('User object: $user');
-      print('Using customerId: $customerId');
+
       final startRes = await _apiService.awsRemoteStart(
         shopId: shopId,
         shelfId: widget.shelfId,
-        sessionId: sessionId,
+        sessionId: sessionUuid,
         customerId: customerId,
       );
+
       if (mounted) {
         setState(() {
           _isMonitoring = true;
         });
       }
 
-      // 6. Inform user and proceed
+      // 6. Success Message & Navigation
       if (!mounted) return;
-      final String shownSession = (startRes['session_id'] ?? sessionId).toString();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Shelf opened - Monitoring started (session: $shownSession)'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      final String shownSession =
+          (startRes['session_id'] ?? sessionUuid).toString();
 
-      // 7. Handle success (if rule passes)
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Welcome, ${user['name']}! Access Granted.'),
@@ -152,7 +159,6 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         ),
       );
 
-      // 8. Navigate
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => ShoppingScreen(
@@ -160,14 +166,13 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
             userName: (shopperName ?? user['name']).toString(),
             shelfName: _shelfDetails?['shelf_name'] ?? widget.shelfId,
             shopId: shopId,
-            customerId: user['shp_user_id']?.toString() ?? '',
-            userEmail: shopperEmail ?? ((user['email'] ?? '').toString().isEmpty ? null : (user['email'] ?? '').toString()),
-            userPhone: shopperPhone ?? ((user['phone'] ?? '').toString().isEmpty ? null : (user['phone'] ?? '').toString()),
+            customerId: customerId ?? '',
+            userEmail: shopperEmail ?? (user['email']?.toString()),
+            userPhone: shopperPhone ?? (user['phone']?.toString()),
           ),
         ),
       );
     } catch (e) {
-      // 8. Handle errors
       _showError(e.toString());
     } finally {
       if (mounted) {

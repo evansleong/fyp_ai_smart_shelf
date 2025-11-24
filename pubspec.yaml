@@ -33,6 +33,9 @@ dependencies:
   tflite_flutter: ^0.12.1
   image: ^4.5.4
 
+  webview_flutter: ^4.4.2
+  webview_flutter_android: ^3.13.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

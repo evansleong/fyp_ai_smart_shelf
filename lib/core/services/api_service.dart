@@ -11,6 +11,65 @@ class ApiService {
   final String _awsProdBase =
       "https://twhhc88zla.execute-api.ap-southeast-1.amazonaws.com/prod";
 
+  /// 1. Create a Liveness Session (Calls Lambda -> AWS Rekognition Tokyo)
+  Future<String> createLivenessSession() async {
+    final response = await http.get(
+      Uri.parse(
+          '$_baseUrl/create-session'), // Ensure this path matches your API Gateway
+      headers: {'Accept': 'application/json'},
+    );
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return responseBody['sessionId'];
+    } else {
+      throw Exception(
+          responseBody['error'] ?? 'Failed to create liveness session.');
+    }
+  }
+
+  /// 2. Verify Result (Calls Lambda -> Checks Tokyo Result -> Searches SG DB)
+  /// Returns the User object if successful.
+  Future<Map<String, dynamic>> verifyLiveness({
+    required String sessionId,
+    required String shelfId,
+  }) async {
+    final response = await http.post(
+      Uri.parse(
+          '$_baseUrl/search-face'), // Ensure this path matches your API Gateway
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'sessionId': sessionId,
+        'shelfId':
+            shelfId, // Optional, depending on if your Lambda uses it for logging
+      }),
+    );
+
+    final responseBody = jsonDecode(response.body);
+    final double confidence = responseBody['confidence'] ?? 0.0;
+
+    if (response.statusCode == 200) {
+      // 🟢 PRINT RESULT HERE
+      //final double confidence = responseBody['confidence'] ?? 0.0;
+      final bool isLive = confidence > 85; // AWS Threshold
+
+      print("==========================================");
+      print("✅ AWS LIVENESS RESULT");
+      print("Status: ${isLive ? 'REAL PERSON' : 'FAKE/SPOOF'}");
+      print("Confidence Score: $confidence%");
+      print("==========================================");
+      return responseBody['user'];
+    } else {
+      // 🔴 PRINT FAILURE
+      print("❌ LIVENESS FAILED");
+      print("Confidence Score: $confidence%");
+      print("Error: ${responseBody['error']}");
+
+      throw Exception(responseBody['error'] ?? 'Liveness verification failed.');
+    }
+  }
+
   Future<bool> checkIcExists(String icNumber) async {
     final response = await http.get(
       // Assumes your new endpoint is /check-ic
@@ -412,7 +471,8 @@ class ApiService {
     required String shopId,
     required String shelfId,
   }) async {
-    final uri = Uri.parse('$_awsProdBase/camera/session-pause/$shopId/$shelfId');
+    final uri =
+        Uri.parse('$_awsProdBase/camera/session-pause/$shopId/$shelfId');
     final res = await http.post(uri, headers: {
       'Accept': 'application/json',
     });
@@ -427,7 +487,8 @@ class ApiService {
     required String shopId,
     required String shelfId,
   }) async {
-    final uri = Uri.parse('$_awsProdBase/camera/session-resume/$shopId/$shelfId');
+    final uri =
+        Uri.parse('$_awsProdBase/camera/session-resume/$shopId/$shelfId');
     final res = await http.post(uri, headers: {
       'Accept': 'application/json',
     });
