@@ -14,7 +14,7 @@ class FaceLivenessWebView extends StatefulWidget {
 class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
   late final WebViewController _controller;
   // REPLACE with your Vercel URL
-  final String _bridgeUrl = "https://smartshelf-faceliveness-qpgcj4otd-evansleongs-projects.vercel.app"; 
+  final String _bridgeUrl = "https://evansleong.github.io/liveness-bridge"; 
 
   @override
   void initState() {
