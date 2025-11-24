@@ -34,6 +34,7 @@ class ApiService {
   Future<Map<String, dynamic>> verifyLiveness({
     required String sessionId,
     required String shelfId,
+    String action = 'login',
   }) async {
     final response = await http.post(
       Uri.parse(
@@ -41,8 +42,9 @@ class ApiService {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'sessionId': sessionId,
-        'shelfId':
-            shelfId, // Optional, depending on if your Lambda uses it for logging
+        'shelfId': shelfId,
+        'action':
+            action, // Optional, depending on if your Lambda uses it for logging
       }),
     );
 

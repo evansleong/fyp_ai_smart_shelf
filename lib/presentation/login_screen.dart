@@ -50,6 +50,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await _apiService.verifyLiveness(
         sessionId: sessionId,
         shelfId: 'LOGIN_APP', 
+        action: 'login',
       );
 
       // --- DEBUG PRINT ---

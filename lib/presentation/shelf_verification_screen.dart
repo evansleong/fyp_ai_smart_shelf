@@ -90,6 +90,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       final user = await _apiService.verifyLiveness(
         sessionId: sessionId,
         shelfId: widget.shelfId,
+        action: 'unlock',
       );
 
       // 4. --- EXISTING LOGIC RESUMES HERE ---
