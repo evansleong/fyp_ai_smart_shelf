@@ -41,17 +41,25 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
   // --- REFACTORED: Uses ApiService ---
   Future<void> _fetchShelfDetails() async {
     try {
-      // 1. Call AWS shelf lookup
-      final shelfData = await _apiService.awsShelfLookup(widget.shelfId);
+      // 1. Fetch Display Details (Stock, Halal, Location)
+      // We use this result to populate the UI because the Lambda is configured for it.
+      final detailedData = await _apiService.fetchShelfDetails(widget.shelfId);
 
-      // 2. Set state
+      // 2. Call AWS Camera Lookup (Keep this per your request)
+      // We wrap it in a try-catch so it doesn't block the UI if the camera is sleeping.
+      try {
+        await _apiService.awsShelfLookup(widget.shelfId);
+      } catch (e) {
+        print("Camera lookup warning (non-fatal): $e");
+      }
+
+      // 3. Update UI State
       if (!mounted) return;
       setState(() {
-        _shelfDetails = shelfData;
+        _shelfDetails = detailedData; // Use the detailed data for the UI
         _isLoadingShelfDetails = false;
       });
     } catch (e) {
-      // 3. Handle errors
       if (!mounted) return;
       setState(() {
         _shelfFetchError = e.toString();
@@ -231,7 +239,6 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
   // --- NEW: Helper widget to manage UI state ---
   Widget _buildBody() {
-    // State 1: Loading shelf details
     if (_isLoadingShelfDetails) {
       return const Column(
         mainAxisSize: MainAxisSize.min,
@@ -243,72 +250,118 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       );
     }
 
-    // State 2: Error loading shelf details
     if (_shelfFetchError != null) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, color: Colors.red, size: 60),
-          const SizedBox(height: 16),
-          Text(
-            'Error',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+          const Icon(Icons.error_outline, color: Colors.red, size: 60),
+          Text('Error loading details',
+              style: Theme.of(context).textTheme.titleLarge),
           Text(_shelfFetchError!, textAlign: TextAlign.center),
-          const SizedBox(height: 20),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Go Back'),
-          ),
         ],
       );
     }
 
-    // State 3: Success, show verification content
+    // Extract Data safely
+    final String shelfName = _shelfDetails?['shelf_name'] ?? 'Smart Shelf';
+    final String location = _shelfDetails?['location'] ?? 'Unknown';
+    final String halalStatus = _shelfDetails?['halal_status'] ?? 'Unknown';
+    final int currentStock = _shelfDetails?['current_stock'] ?? 0;
+
+    final bool isHalal = halalStatus == 'Halal';
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // --- NEW: Display Shelf Name and Location ---
+        // 1. NAME AND LOCATION
         Text(
-          _shelfDetails?['shelf_name'] ?? 'Smart Shelf', // Shelf Name (AWS)
-          style: Theme.of(context).textTheme.headlineSmall,
+          shelfName,
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade900,
+              ),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        if (_shelfDetails?['location'] != null)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.location_on_outlined,
-                  size: 16, color: Colors.grey.shade700),
-              const SizedBox(width: 4),
-              Text(
-                _shelfDetails!['location'], // Optional Location
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-          ),
-        const SizedBox(height: 4),
-        Text(
-          'ID: ${widget.shelfId}', // The original ID
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade600,
-              ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.location_on, size: 20, color: Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Text(
+              location,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.grey.shade700,
+                  ),
+            ),
+          ],
         ),
 
-        const SizedBox(height: 8),
-        if (_shelfDetails?['halal_status'] != null)
-          Text(
-            'Status: ${_shelfDetails!['halal_status']}',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: _shelfDetails!['halal_status'] == 'Non-Halal'
-                      ? Colors.red.shade700
-                      : Colors.green.shade700,
+        const SizedBox(height: 20),
+
+        // 2. STOCK AND HALAL CHIPS
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Stock Chip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2_outlined,
+                      size: 18, color: Colors.blue),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Stock: $currentStock',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.blue),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Halal Status Chip
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isHalal ? Colors.green.shade50 : Colors.red.shade50,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isHalal ? Colors.green.shade200 : Colors.red.shade200,
                 ),
-          ),
-        // --- END NEW ---
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isHalal ? Icons.check_circle_outline : Icons.no_food,
+                    size: 18,
+                    color: isHalal ? Colors.green : Colors.red,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    halalStatus,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color:
+                          isHalal ? Colors.green.shade700 : Colors.red.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
         const SizedBox(height: 32),
+
+        // 3. FACE SCAN PROMPT
         const Icon(
           Icons.face_retouching_natural,
           size: 100,
@@ -316,11 +369,13 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Please scan your face to unlock this shelf and start shopping.',
+          'Please scan your face to unlock this shelf.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 16),
         ),
         const SizedBox(height: 40),
+
+        // 4. ACTION BUTTON
         _isVerifying
             ? const CircularProgressIndicator()
             : SizedBox(
