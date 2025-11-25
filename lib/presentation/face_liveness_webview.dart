@@ -14,7 +14,7 @@ class FaceLivenessWebView extends StatefulWidget {
 class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
   late final WebViewController _controller;
   // REPLACE with your Vercel URL
-  final String _bridgeUrl = "https://evansleong.github.io/liveness-bridge"; 
+  final String _bridgeUrl = "https://evansleong.github.io/liveness-bridge";
 
   @override
   void initState() {
@@ -41,9 +41,14 @@ class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
         onMessageReceived: (JavaScriptMessage message) {
           if (message.message == 'COMPLETE') {
             Navigator.of(context).pop(true); // Success
+          } else if (message.message == 'CANCEL') {
+            // User clicked the X button in React
+            debugPrint("User cancelled liveness check");
+            Navigator.of(context).pop();
           } else if (message.message.startsWith('ERROR')) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Liveness Check Failed: ${message.message}")),
+              SnackBar(
+                  content: Text("Liveness Check Failed: ${message.message}")),
             );
             Navigator.of(context).pop(false);
           }
@@ -55,12 +60,12 @@ class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
     // This fixes the "PlatformWebViewController" issue
     if (controller.platform is AndroidWebViewController) {
       // Create a typed variable
-      final AndroidWebViewController androidController = 
+      final AndroidWebViewController androidController =
           controller.platform as AndroidWebViewController;
 
       // Now we can call Android-specific methods
       androidController.setMediaPlaybackRequiresUserGesture(false);
-      
+
       // Auto-grant camera permissions
       androidController.setOnPlatformPermissionRequest(
         (PlatformWebViewPermissionRequest request) {
