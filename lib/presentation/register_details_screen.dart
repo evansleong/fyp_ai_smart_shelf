@@ -199,43 +199,106 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
   // --- UI HELPER METHODS ---
 
   Widget _buildPersonalDetailsCard() {
-    final disabledFillColor = Colors.grey.shade200;
+    final disabledFillColor = const Color(0xFFF8FAFC);
     final inputDecoration = InputDecoration(
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none),
         filled: true,
         fillColor: disabledFillColor,
-        prefixIconColor: Colors.grey.shade600);
+        prefixIconColor: Colors.grey.shade600,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16));
 
-    final titleStyle = Theme.of(context)
-        .textTheme
-        .titleLarge
-        ?.copyWith(fontWeight: FontWeight.bold);
-
-    return Card(
-      elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.05),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- MODIFIED: Added icon and subtitle for clarity ---
+            // Header with icon
             Row(
               children: [
-                Icon(Icons.document_scanner_outlined,
-                    color: Colors.grey.shade700),
-                const SizedBox(width: 8),
-                Text('Personal Details', style: titleStyle),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.primary,
+                        Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.document_scanner_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Personal Details',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1E293B),
+                              letterSpacing: -0.3,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        width: 50,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 4.0, bottom: 12.0),
-              child: Text(
-                'These details are filled automatically by scanning your IC.',
-                style: Theme.of(context).textTheme.bodySmall,
+              padding: const EdgeInsets.only(top: 12.0, bottom: 20.0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'These details are filled automatically by scanning your IC.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                  ),
+                ],
               ),
             ),
             TextFormField(
@@ -244,6 +307,10 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
               decoration: inputDecoration.copyWith(
                 labelText: 'Full Name',
                 prefixIcon: const Icon(Icons.person_outline),
+              ),
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF1E293B),
               ),
             ),
             const SizedBox(height: 16),
@@ -254,6 +321,10 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
                 labelText: 'IC Number (NRIC)',
                 prefixIcon: const Icon(Icons.badge_outlined),
               ),
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF1E293B),
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -262,6 +333,10 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
               decoration: inputDecoration.copyWith(
                 labelText: 'Gender',
                 prefixIcon: const Icon(Icons.wc_outlined),
+              ),
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF1E293B),
               ),
             ),
             const SizedBox(height: 16),
@@ -272,6 +347,10 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
                 labelText: 'Religion',
                 prefixIcon: const Icon(Icons.mosque_outlined),
               ),
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF1E293B),
+              ),
             ),
           ],
         ),
@@ -281,36 +360,116 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
 
   Widget _buildContactDetailsCard() {
     final inputDecoration = InputDecoration(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(
+          color: Theme.of(context).colorScheme.primary,
+          width: 2,
+        ),
+      ),
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     );
-    final titleStyle = Theme.of(context)
-        .textTheme
-        .titleLarge
-        ?.copyWith(fontWeight: FontWeight.bold);
 
-    return Card(
-      elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header with icon
             Row(
               children: [
-                Icon(Icons.edit_note_outlined,
-                    color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text('Contact Information', style: titleStyle),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Theme.of(context).colorScheme.primary,
+                        Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.edit_note_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Contact Information',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF1E293B),
+                              letterSpacing: -0.3,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Container(
+                        width: 60,
+                        height: 3,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.only(top: 4.0, bottom: 12.0),
-              child: Text(
-                'Please fill in your contact details manually.',
-                style: Theme.of(context).textTheme.bodySmall,
+              padding: const EdgeInsets.only(top: 12.0, bottom: 20.0),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Please fill in your contact details manually.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                  ),
+                ],
               ),
             ),
             TextFormField(
@@ -361,9 +520,9 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _emailController,
-              decoration: const InputDecoration(
+              decoration: inputDecoration.copyWith(
                 labelText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined),
+                prefixIcon: const Icon(Icons.email_outlined),
                 hintText: 'example@email.com',
               ),
               keyboardType: TextInputType.emailAddress,
@@ -398,103 +557,252 @@ class _RegisterDetailsScreenState extends State<RegisterDetailsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text('Create Account (Step 1 of 2)'), // 👈 --- Title changed
-        backgroundColor: Colors.transparent,
         elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Create Account',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+            letterSpacing: -0.5,
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  Colors.grey.shade200,
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       body: Container(
-        // ... (gradient decoration is the same)
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFFF8FAFC),
+              const Color(0xFFF1F5F9),
+            ],
+          ),
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ... (Header text is the same)
-                  Text(
-                    "Let's Get You Started",
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Scan your IC to fill your details automatically.',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // --- 'Scan IC' Button (Same) ---
-                  FilledButton.tonalIcon(
-                    onPressed: _isScanning ? null : _startScan,
-                    icon: _isScanning
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.scanner_outlined),
-                    label: Text(
-                        _isScanning ? 'Scanning...' : 'Scan IC to Autofill'),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                  // Header Section
+                  Container(
+                    padding: const EdgeInsets.all(24.0),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                          Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).colorScheme.primary,
+                                Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.person_add_alt_1,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          "Let's Get You Started",
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF1E293B),
+                                letterSpacing: -0.5,
+                              ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Scan your IC to fill your details automatically',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: const Color(0xFF64748B),
+                                fontWeight: FontWeight.w500,
+                              ),
+                        ),
+                        const SizedBox(height: 20),
+                        // Scan IC Button
+                        SizedBox(
+                          width: double.infinity,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: FilledButton.icon(
+                              onPressed: _isScanning ? null : _startScan,
+                              icon: _isScanning
+                                  ? const SizedBox.square(
+                                      dimension: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ))
+                                  : const Icon(Icons.scanner_outlined, size: 24),
+                              label: Text(
+                                _isScanning ? 'Scanning...' : 'Scan IC to Autofill',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                minimumSize: const Size(double.infinity, 56),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-
-                  // --- (Capture Face Button is REMOVED) ---
 
                   const SizedBox(height: 24),
 
                   _buildPersonalDetailsCard(),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   _buildContactDetailsCard(),
                   const SizedBox(height: 32),
 
-                  // --- MODIFIED BUTTON ROW ---
+                  // Button Row
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isCheckingIC ? null : _resetForm,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade300),
                           ),
-                          child: const Text('Reset Fields'),
+                          child: OutlinedButton(
+                            onPressed: _isCheckingIC ? null : _resetForm,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              side: BorderSide.none,
+                            ),
+                            child: const Text(
+                              'Reset Fields',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: FilledButton(
-                          // On pressed now calls _goToNextStep
-                          onPressed: _isCheckingIC ? null : _goToNextStep,
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                        flex: 2,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                Theme.of(context).colorScheme.primary,
+                                Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                          child: _isCheckingIC // 👈 --- Show loading
-                              ? const SizedBox(
-                                  height: 24,
-                                  width: 24,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 3,
+                          child: FilledButton(
+                            onPressed: _isCheckingIC ? null : _goToNextStep,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: _isCheckingIC
+                                ? const SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 3,
+                                    ),
+                                  )
+                                : Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: const [
+                                      Text(
+                                        'Next',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Icon(Icons.arrow_forward, size: 20),
+                                    ],
                                   ),
-                                )
-                              : const Text(
-                                  'Next', // 👈 --- Button text changed
-                                  style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold),
-                                ),
+                          ),
                         ),
                       ),
                     ],

@@ -41,7 +41,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 // The original counter page is kept below for reference, but unused.
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -90,3 +89,4 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
+

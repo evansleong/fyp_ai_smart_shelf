@@ -9,6 +9,7 @@ import '../core/widgets/camera_screen.dart';
 import 'shelf_verification_screen.dart';
 import 'profile_screen.dart';
 import 'search_shelves_screen.dart';
+import 'register_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String shpUserId;
@@ -151,8 +152,29 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(_pageIndex == 0 ? 'Home Screen' : 'Search Shelves'),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: Text(
+          _pageIndex == 0 ? 'Home' : 'Search Shelves',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1E293B),
+            letterSpacing: -0.5,
+          ),
+        ),
         actions: [
+          // Temporary debug button for RegisterDetailsScreen
+          IconButton(
+            icon: const Icon(Icons.app_registration, color: Colors.orange),
+            tooltip: 'Test Register Details (Debug)',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const RegisterDetailsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: 'Profile',
@@ -278,6 +300,9 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   double _totalSpent = 0.0;
   List<Map<String, dynamic>> _categoryChartData = [];
   String? _transactionError;
+  
+  // State for AI insights
+  Map<String, dynamic>? _aiInsights;
 
   // Chart colors
   final List<Color> _chartColors = const [
@@ -327,11 +352,11 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
     try {
       // use KAH YUNG data first
-      const String testCustomerId = "9a3e4a12-0652-441d-959b-584bd07ed05a";
+      //const String testCustomerId = "9a3e4a12-0652-441d-959b-584bd07ed05a";
       // 1. Fetch Orders
       final List<dynamic> orders =
-          await _apiService.getCustomerOrders(testCustomerId);
-      //await _apiService.getCustomerOrders(widget.customerId!);
+          //await _apiService.getCustomerOrders(testCustomerId);
+      await _apiService.getCustomerOrders(widget.customerId!);
 
       // 2. Process Orders
       final Map<String, double> categorySpend = {};
@@ -348,27 +373,25 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
         return;
       }
 
-      for (var order in orders) {
-        final List<dynamic> items = order['items'] ?? [];
+    for (var order in orders) {
+      final List<dynamic> items = order['items'] ?? [];
 
-        // Use summary total if available, otherwise sum items
-        final summary = order['summary'];
-        if (summary != null && summary['total_price'] != null) {
-          totalSpend += (summary['total_price'] as num).toDouble();
-        }
-
-        for (var item in items) {
-          // **Assumption**: Lambda returns clean JSON with 'category',
-          // 'unit_price', and 'quantity'.
-          final String category = item['category'] ?? 'Others';
-          final double price = (item['unit_price'] ?? 0.0).toDouble();
-          final int quantity = (item['quantity'] ?? 0).toInt();
-          final double itemTotal = price * quantity;
-
-          categorySpend.update(category, (value) => value + itemTotal,
-              ifAbsent: () => itemTotal);
-        }
+      // Use summary total if available, otherwise sum items
+      final summary = order['summary'];
+      if (summary != null && summary['total_price'] != null) {
+        totalSpend += (summary['total_price'] as num).toDouble();
       }
+
+      for (var item in items) {
+        final String category = item['category'] ?? 'Others';
+        final double price = (item['unit_price'] ?? 0.0).toDouble();
+        final int quantity = (item['quantity'] ?? 0).toInt();
+        final double itemTotal = price * quantity;
+
+        categorySpend.update(category, (value) => value + itemTotal,
+            ifAbsent: () => itemTotal);
+      }
+    }
 
       // Fallback: If totalSpend from summaries was 0, calculate from items
       if (totalSpend == 0.0 && categorySpend.isNotEmpty) {
@@ -403,7 +426,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
         colorIndex++;
       }
 
-      // 4. Set State
+      // 4. Calculate AI Insights
+      _calculateAIInsights(orders, categorySpend, totalSpend);
+
+      // 5. Set State
       if (mounted) {
         setState(() {
           _isLoadingTransactions = false;
@@ -424,22 +450,31 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFFF8FAFC),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFFF8FAFC),
+            const Color(0xFFF1F5F9),
+          ],
+        ),
+      ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Welcome Section
             _buildWelcomeSection(context),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
             // Transaction Overview Card
             _buildTransactionOverviewCard(context),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Product Recommendations Carousel
-            _buildRecommendationsCarousel(context),
+            // AI Insights Section
+            _buildAIInsightsSection(context),
             const SizedBox(height: 80), // Bottom padding for FAB
           ],
         ),
@@ -448,26 +483,76 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   }
 
   Widget _buildWelcomeSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(24.0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            Theme.of(context).colorScheme.primary.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
         children: [
-          Text(
-            widget.isLoadingProfile
-                ? 'Welcome!'
-                : 'Welcome, ${widget.userProfileData?['name'] ?? 'User'}!',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: const Color(0xFF1E293B),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      widget.isLoadingProfile
+                          ? 'Welcome!'
+                          : 'Welcome back,',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF64748B),
+                          ),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.isLoadingProfile
+                      ? 'User'
+                      : '${widget.userProfileData?['name'] ?? 'User'}!',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF1E293B),
+                        letterSpacing: -0.5,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.shopping_bag_outlined,
+                      size: 16,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Ready to shop today?',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Ready to shop today?',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: const Color(0xFF64748B),
-                ),
+          _AnimatedWavingHand(
+            color: Theme.of(context).colorScheme.primary,
           ),
         ],
       ),
@@ -475,11 +560,21 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   }
 
   Widget _buildTransactionOverviewCard(BuildContext context) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -488,50 +583,100 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Transaction Overview',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF1E293B),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                            ],
                           ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 40,
-                      height: 2,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ],
-                ),
-                // View History Button
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TransactionHistoryScreen(
-                          // Pass shpUserId as the original code did
-                          shpUserId: widget.shpUserId,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.analytics_outlined,
+                          color: Colors.white,
+                          size: 20,
                         ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.history, size: 18),
-                  label: const Text('View All'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Overview',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: const Color(0xFF1E293B),
+                                    letterSpacing: -0.3,
+                                  ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              width: 50,
+                              height: 3,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Theme.of(context).colorScheme.primary,
+                                    Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // View History Button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TextButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TransactionHistoryScreen(
+                            shpUserId: widget.shpUserId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: Icon(
+                      Icons.history,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    label: Text(
+                      'View All',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             // Chart and Legend - Now dynamic
             if (_isLoadingTransactions)
@@ -591,13 +736,29 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
             const SizedBox(height: 16),
 
             // Footer
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'Based on purchase history',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF94A3B8),
-                    ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Based on purchase history',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: const Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -607,49 +768,85 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   }
 
   Widget _buildDonutChart(List<Map<String, dynamic>> chartData) {
-    return SizedBox(
-      width: 180,
-      height: 180,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          PieChart(
-            PieChartData(
-              sectionsSpace: 2,
-              centerSpaceRadius:70,
-              sections: chartData.map((data) {
-                return PieChartSectionData(
-                  color: data['color'] as Color,
-                  value: data['percentage'] as double,
-                  title: '',
-                  radius: 25,
-                );
-              }).toList(),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Total Spend',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                // Use the fetched total spend
-                '\RM${_totalSpent.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1E293B),
-                ),
-              ),
-            ],
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            const Color(0xFFF8FAFC),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 15,
+            spreadRadius: 2,
           ),
         ],
+      ),
+      child: SizedBox(
+        width: 180,
+        height: 180,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            PieChart(
+              PieChartData(
+                sectionsSpace: 3,
+                centerSpaceRadius: 70,
+                sections: chartData.map((data) {
+                  return PieChartSectionData(
+                    color: data['color'] as Color,
+                    value: data['percentage'] as double,
+                    title: '',
+                    radius: 28,
+                  );
+                }).toList(),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Total Spend',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'RM ${_totalSpent.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -660,31 +857,58 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: chartData.map((data) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6.0),
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: (data['color'] as Color).withOpacity(0.2),
+              width: 1,
+            ),
+          ),
           child: Row(
             children: [
               Container(
-                width: 12,
-                height: 12,
+                width: 14,
+                height: 14,
                 decoration: BoxDecoration(
                   color: data['color'] as Color,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: (data['color'] as Color).withOpacity(0.3),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                data['category'] as String,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  data['category'] as String,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E293B),
+                      ),
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                '${(data['percentage'] as double).toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF64748B),
-                    ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (data['color'] as Color).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${(data['percentage'] as double).toStringAsFixed(1)}%',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: data['color'] as Color,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                ),
               ),
             ],
           ),
@@ -693,67 +917,282 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     );
   }
 
-  Widget _buildRecommendationsCarousel(BuildContext context) {
-    // Mock product data
-    final products = [
-      {
-        'name': 'Iced Latte',
-        'tagline': 'Popular choice!',
-        'emoji': '☕',
-      },
-      {
-        'name': 'Chicken Wrap',
-        'tagline': 'Healthy option',
-        'emoji': '🥙',
-      },
-      {
-        'name': 'Protein Bar',
-        'tagline': 'Energy boost!',
-        'emoji': '🍫',
-      },
-      {
-        'name': 'Fresh Juice',
-        'tagline': 'Vitamin rich',
-        'emoji': '🧃',
-      },
-    ];
+  void _calculateAIInsights(List<dynamic> orders, Map<String, double> categorySpend, double totalSpend) {
+    if (orders.isEmpty) {
+      _aiInsights = null;
+      return;
+    }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    final Map<String, int> dayOfWeekCount = {};
+    final Map<String, int> shopCount = {};
+    String? topCategory;
+    double topCategorySpend = 0.0;
+    int totalTransactions = orders.length;
+    double avgTransactionValue = totalSpend / totalTransactions;
+
+    for (var entry in categorySpend.entries) {
+      if (entry.value > topCategorySpend) {
+        topCategorySpend = entry.value;
+        topCategory = entry.key;
+      }
+    }
+
+    for (var order in orders) {
+      final dateStr = order['date'] ?? '';
+      final shopName = order['shop_name'] ?? 
+                       order['shopName'] ?? 
+                       order['details'] ?? 
+                       '';
+      
+      if (dateStr.isNotEmpty) {
+        try {
+          final date = DateTime.parse(dateStr);
+          final dayName = _getDayName(date.weekday);
+          dayOfWeekCount.update(dayName, (value) => value + 1, ifAbsent: () => 1);
+        } catch (e) {
+          // Skip invalid dates
+        }
+      }
+      
+      if (shopName.isNotEmpty && 
+          shopName.toLowerCase() != 'unknown shop' && 
+          shopName.toLowerCase() != 'unknown') {
+        shopCount.update(shopName, (value) => value + 1, ifAbsent: () => 1);
+      }
+    }
+
+    String? favoriteDay;
+    int maxDayCount = 0;
+    for (var entry in dayOfWeekCount.entries) {
+      if (entry.value > maxDayCount) {
+        maxDayCount = entry.value;
+        favoriteDay = entry.key;
+      }
+    }
+
+    String? favoriteShop;
+    int maxShopCount = 0;
+    for (var entry in shopCount.entries) {
+      if (entry.value > maxShopCount) {
+        maxShopCount = entry.value;
+        favoriteShop = entry.key;
+      }
+    }
+
+    _aiInsights = {
+      'topCategory': topCategory ?? 'N/A',
+      'topCategoryPercentage': totalSpend > 0 ? (topCategorySpend / totalSpend * 100) : 0.0,
+      'favoriteDay': favoriteDay,
+      'favoriteShop': favoriteShop,
+      'totalTransactions': totalTransactions,
+      'avgTransactionValue': avgTransactionValue,
+      'totalSpend': totalSpend,
+    };
+  }
+
+  String _getDayName(int weekday) {
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    return days[weekday - 1];
+  }
+
+  Widget _buildAIInsightsSection(BuildContext context) {
+    if (_isLoadingTransactions) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 20,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Padding(
+          padding: EdgeInsets.all(40.0),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (_transactionError != null || _aiInsights == null) {
+      return const SizedBox.shrink();
+    }
+
+    final insights = _aiInsights!;
+    final topCategory = insights['topCategory'] as String?;
+    final favoriteDay = insights['favoriteDay'] as String?;
+    final totalTransactions = insights['totalTransactions'] as int;
+    final avgTransaction = insights['avgTransactionValue'] as double;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Recommended for You',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF1E293B),
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    width: 60,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary,
-                      borderRadius: BorderRadius.circular(1),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFF6366F1),
+                        const Color(0xFF6366F1).withOpacity(0.7),
+                      ],
                     ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ],
-              ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI Insights',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1E293B),
+                            letterSpacing: -0.3,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      width: 50,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF6366F1),
+                            Color(0xFF6366F1),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            _AutoScrollCarousel(products: products),
+            const SizedBox(height: 24),
+            _buildInsightCard(
+              icon: Icons.category_outlined,
+              title: 'Favorite Category',
+              value: topCategory ?? 'N/A',
+              subtitle: 'Most purchased category',
+              color: const Color(0xFF6366F1),
+            ),
+            const SizedBox(height: 12),
+            if (favoriteDay != null)
+              _buildInsightCard(
+                icon: Icons.calendar_today_outlined,
+                title: 'Shopping Pattern',
+                value: 'Usually shops on $favoriteDay',
+                subtitle: 'Based on your history',
+                color: const Color(0xFF10B981),
+              ),
+            if (favoriteDay != null) const SizedBox(height: 12),
+            _buildInsightCard(
+              icon: Icons.trending_up_outlined,
+              title: 'Shopping Stats',
+              value: '$totalTransactions transactions',
+              subtitle: 'Avg: RM ${avgTransaction.toStringAsFixed(2)} per visit',
+              color: const Color(0xFFF59E0B),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInsightCard({
+    required IconData icon,
+    required String title,
+    required String value,
+    required String subtitle,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: color,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -822,7 +1261,7 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
     return Column(
       children: [
         SizedBox(
-          height: 220,
+          height: 240,
           child: PageView.builder(
             controller: _pageController,
             onPageChanged: (index) {
@@ -842,12 +1281,13 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(
             widget.products.length,
-            (index) => Container(
-              width: index == _currentPage % widget.products.length ? 8 : 6,
-              height: index == _currentPage % widget.products.length ? 8 : 6,
+            (index) => AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              width: index == _currentPage % widget.products.length ? 24 : 8,
+              height: 8,
               margin: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(4),
                 color: index == _currentPage % widget.products.length
                     ? Theme.of(context).colorScheme.primary
                     : Colors.grey.shade300,
@@ -861,17 +1301,17 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
 
   Widget _buildProductCard(Map<String, dynamic> product, BuildContext context) {
     return Container(
-      width: 160,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
+      width: 170,
+      margin: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -880,24 +1320,31 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
         children: [
           // Product Image (placeholder with emoji)
           Container(
-            height: 120,
+            height: 130,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                ],
+              ),
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
               ),
             ),
             child: Center(
               child: Text(
                 product['emoji'] as String,
-                style: const TextStyle(fontSize: 48),
+                style: const TextStyle(fontSize: 56),
               ),
             ),
           ),
           // Product details
           Padding(
-            padding: const EdgeInsets.all(12.0),
+            padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -906,35 +1353,119 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF1E293B),
+                        fontSize: 15,
+                        letterSpacing: -0.2,
                       ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.star,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        product['tagline'] as String,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.star_rounded,
+                        size: 14,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          product['tagline'] as String,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 11,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// Animated Waving Hand Widget
+class _AnimatedWavingHand extends StatefulWidget {
+  final Color color;
+
+  const _AnimatedWavingHand({
+    required this.color,
+  });
+
+  @override
+  State<_AnimatedWavingHand> createState() => _AnimatedWavingHandState();
+}
+
+class _AnimatedWavingHandState extends State<_AnimatedWavingHand>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _rotationAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    // Create a repeating animation that goes from -20 to 20 degrees
+    _rotationAnimation = Tween<double>(
+      begin: -0.35, // -20 degrees in radians
+      end: 0.35,    // 20 degrees in radians
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    // Repeat the animation
+    _controller.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: widget.color.withOpacity(0.1),
+        shape: BoxShape.circle,
+      ),
+      child: AnimatedBuilder(
+        animation: _rotationAnimation,
+        builder: (context, child) {
+          return Transform.rotate(
+            angle: _rotationAnimation.value,
+            alignment: Alignment.bottomCenter,
+            child: Icon(
+              Icons.waving_hand,
+              size: 32,
+              color: widget.color,
+            ),
+          );
+        },
       ),
     );
   }

@@ -23,51 +23,106 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    // --- TEMPORARY TEST --- KAH YUNG DATA
     _transactionsFuture =
-        _apiService.getCustomerOrdersHistory("9a3e4a12-0652-441d-959b-584bd07ed05a");
-    
-    // Use the actual user ID passed from HomeScreen
-    //_transactionsFuture = _apiService.getCustomerOrders(widget.shpUserId);
+        _apiService.getCustomerOrdersHistory(widget.shpUserId);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Transaction History'),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Transaction History',
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
       ),
-      // --- This is the FutureBuilder logic moved from HomeScreen ---
       body: FutureBuilder<List<dynamic>>(
         future: _transactionsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF6366F1),
+              ),
+            );
           }
 
           if (snapshot.hasError) {
             return Center(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Failed to load history:\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.red.shade700),
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load history',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Text(
-                'You have no transaction history yet.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.receipt_long_outlined,
+                    size: 80,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'No transactions yet',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your transaction history will appear here',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
               ),
             );
           }
 
-          // --- Sorting Logic ---
           final transactions = snapshot.data!;
           transactions.sort((a, b) {
             try {
@@ -88,7 +143,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             }
           });
 
-          // --- Grouping Logic ---
           final List<dynamic> groupedItems = [];
           String? currentMonthHeader;
           final DateFormat headerFormat = DateFormat('MMMM yyyy');
@@ -98,7 +152,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             String monthHeader = "UNKNOWN MONTH";
             try {
               final DateTime date = DateTime.parse(dateString);
-              monthHeader = headerFormat.format(date).toUpperCase();
+              monthHeader = headerFormat.format(date);
             } catch (e) {
               if (dateString.isNotEmpty) {
                 monthHeader = dateString;
@@ -112,141 +166,197 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             groupedItems.add(transaction);
           }
 
-          // --- List Building Logic ---
           return ListView.builder(
             itemCount: groupedItems.length,
-            // Add padding for the last item
-            padding: const EdgeInsets.only(bottom: 24.0), 
+            padding: const EdgeInsets.symmetric(vertical: 8),
             itemBuilder: (context, index) {
               final item = groupedItems[index];
 
-              // Monthly Header
               if (item is String) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    item.toUpperCase(),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey.shade700,
-                          letterSpacing: 0.5,
-                        ),
-                  ),
-                );
+                return _buildMonthHeader(item);
               }
 
-              // Transaction ListTile
               if (item is Map<String, dynamic>) {
-                final transaction = item;
-
-                // Amount
-                double amount = 0.0;
-                if (transaction['amount'] != null) {
-                  amount =
-                      double.tryParse(transaction['amount'].toString()) ?? 0.0;
-                }
-                final String displayAmount =
-                    '- RM ${amount.abs().toStringAsFixed(2)}';
-                const Color amountColor = Colors.red;
-
-                // Details
-                final imageUrl = transaction['imageUrl'] as String?;
-                final paymentMethod = transaction['payment_method'] ?? 'N/A';
-
-                // Date/Time Formatting
-                final String dateStr = transaction['date'] ?? '';
-                final String timeStr = transaction['time'] ?? '';
-                String displayTime;
-
-                if (dateStr.isNotEmpty && timeStr.isNotEmpty) {
-                  try {
-                    final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
-                    final outputFormat = DateFormat('dd/MM/yyyy hh:mm a');
-                    final DateTime parsedDateTime =
-                        inputFormat.parse('$dateStr $timeStr');
-                    displayTime = outputFormat.format(parsedDateTime);
-                  } catch (e) {
-                    displayTime =
-                        '${transaction['date']} ${transaction['time']}';
-                  }
-                } else {
-                  displayTime = transaction['time'] ?? 'No Time';
-                }
-
-                final String subtitleText = '$displayTime • $paymentMethod';
-
-                // The Card
-                return Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    //leading: SizedBox(
-                    //  width: 56,
-                    //  height: 56,
-                    //  child: ClipRRect(
-                    //    borderRadius: BorderRadius.circular(8.0),
-                    //    child: (imageUrl != null)
-                    //        ? Image.network(
-                    //            imageUrl,
-                    //            fit: BoxFit.cover,
-                    //            errorBuilder: (context, error, stackTrace) {
-                    //              return Container(
-                    //                color: Colors.grey.shade200,
-                    //                child: const Icon(
-                    //                    Icons.inventory_2_outlined,
-                    //                    color: Colors.grey),
-                    //              );
-                    //            },
-                    //          )
-                    //        : Container(
-                    //            color: Colors.grey.shade200,
-                    //            child: const Icon(Icons.inventory_2_outlined,
-                    //                color: Colors.grey),
-                    //          ),
-                    //  ),
-                    //),
-                    title: Text(
-                      transaction['shop_name'] ?? transaction['details'] ?? 'No Details',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                    subtitle: Text(
-                      subtitleText,
-                      style:
-                          TextStyle(color: Colors.grey.shade600, height: 1.4),
-                    ),
-                    isThreeLine: false,
-                    trailing: Text(
-                      displayAmount,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: amountColor,
-                        fontSize: 16,
-                      ),
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => TransactionDetailsScreen(
-                            transaction: transaction,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
+                return _buildTransactionCard(item, context);
               }
-              return Container();
+              return const SizedBox.shrink();
             },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildMonthHeader(String month) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+      child: Text(
+        month,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: Colors.grey.shade600,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionCard(Map<String, dynamic> transaction, BuildContext context) {
+    double amount = 0.0;
+    if (transaction['amount'] != null) {
+      amount = double.tryParse(transaction['amount'].toString()) ?? 0.0;
+    }
+    final String displayAmount = 'RM ${amount.abs().toStringAsFixed(2)}';
+    
+    final paymentMethod = transaction['payment_method'] ?? 'Card';
+    final shopName = transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
+    
+    final String dateStr = transaction['date'] ?? '';
+    final String timeStr = transaction['time'] ?? '';
+    String displayDate = '';
+    String displayTime = '';
+
+    if (dateStr.isNotEmpty && timeStr.isNotEmpty) {
+      try {
+        final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
+        final dateTimeFormat = DateFormat('dd MMM yyyy');
+        final timeFormat = DateFormat('hh:mm a');
+        final DateTime parsedDateTime = inputFormat.parse('$dateStr $timeStr');
+        displayDate = dateTimeFormat.format(parsedDateTime);
+        displayTime = timeFormat.format(parsedDateTime);
+      } catch (e) {
+        displayDate = dateStr;
+        displayTime = timeStr;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TransactionDetailsScreen(
+                  transaction: transaction,
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Color(0xFF6366F1),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        shopName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (displayDate.isNotEmpty) ...[
+                            Text(
+                              displayDate,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              ' • ',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
+                          Text(
+                            displayTime.isNotEmpty ? displayTime : paymentMethod,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      displayAmount,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFDC2626),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        paymentMethod,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

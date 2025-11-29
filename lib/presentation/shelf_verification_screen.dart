@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'dart:io';
-import '../core/widgets/camera_screen.dart';
 import 'shopping_screen.dart';
 import '../core/services/api_service.dart';
 import 'package:uuid/uuid.dart';
@@ -143,7 +140,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       final String sessionUuid = const Uuid().v4();
       final String? customerId = user['shp_user_id']?.toString();
 
-      final startRes = await _apiService.awsRemoteStart(
+      await _apiService.awsRemoteStart(
         shopId: shopId,
         shelfId: widget.shelfId,
         sessionId: sessionUuid,
@@ -158,9 +155,6 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
       // 6. Success Message & Navigation
       if (!mounted) return;
-      final String shownSession =
-          (startRes['session_id'] ?? sessionUuid).toString();
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Welcome, ${user['name']}! Access Granted.'),
@@ -263,134 +257,338 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
     }
 
     // Extract Data safely
+    final String shopName =
+        _shelfDetails?['shop_name'] ?? 'Smart Shop'; // <--- NEW
     final String shelfName = _shelfDetails?['shelf_name'] ?? 'Smart Shelf';
     final String location = _shelfDetails?['location'] ?? 'Unknown';
     final String halalStatus = _shelfDetails?['halal_status'] ?? 'Unknown';
     final int currentStock = _shelfDetails?['current_stock'] ?? 0;
-
     final bool isHalal = halalStatus == 'Halal';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 1. NAME AND LOCATION
-        Text(
-          shelfName,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.blue.shade900,
-              ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.location_on, size: 20, color: Colors.grey.shade600),
-            const SizedBox(width: 4),
-            Text(
-              location,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.grey.shade700,
-                  ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 20),
-
-        // 2. STOCK AND HALAL CHIPS
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Stock Chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.inventory_2_outlined,
-                      size: 18, color: Colors.blue),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Stock: $currentStock',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.blue),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 12),
-
-            // Halal Status Chip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isHalal ? Colors.green.shade50 : Colors.red.shade50,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isHalal ? Colors.green.shade200 : Colors.red.shade200,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isHalal ? Icons.check_circle_outline : Icons.no_food,
-                    size: 18,
-                    color: isHalal ? Colors.green : Colors.red,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    halalStatus,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color:
-                          isHalal ? Colors.green.shade700 : Colors.red.shade700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 32),
-
-        // 3. FACE SCAN PROMPT
-        const Icon(
-          Icons.face_retouching_natural,
-          size: 100,
-          color: Colors.blue,
+        _ShelfInfoHeader(
+          shopName: shopName,
+          shelfName: shelfName,
+          halalStatus: halalStatus,
+          isHalal: isHalal,
         ),
         const SizedBox(height: 24),
-        const Text(
-          'Please scan your face to unlock this shelf.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _StatCard(
+                label: 'Ready Stock',
+                value: '$currentStock items',
+                icon: Icons.inventory_rounded,
+                accentColor: Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _StatCard(
+                label: 'Shelf Location',
+                value: location,
+                icon: Icons.place_outlined,
+                accentColor: Colors.deepPurple,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 40),
-
-        // 4. ACTION BUTTON
+        const SizedBox(height: 24),
+        _InstructionCard(isHalal: isHalal),
+        const SizedBox(height: 32),
         _isVerifying
-            ? const CircularProgressIndicator()
+            ? const Center(child: CircularProgressIndicator())
             : SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
                   onPressed: _captureAndVerifyFace,
-                  icon: const Icon(Icons.camera_front),
-                  label: const Text('Scan Face to Verify'),
+                  icon: const Icon(Icons.lock_open_rounded),
+                  label: const Text('Unlock Shelf'),
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 16),
                   ),
                 ),
               ),
+        const SizedBox(height: 12),
+
+        // TEST
+        // TEST
+        // TEST
+        // TEST
+        // TEST
+        if (!_isVerifying)
+          TextButton.icon(
+            onPressed: _debugForceUnlock,
+            icon: const Icon(Icons.bug_report, color: Colors.red),
+            label: const Text(
+              "DEBUG: FORCE UNLOCK",
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+          // TEST
+          // TEST
+          // TEST
+          // TEST
+          // TEST
       ],
     );
   }
-  // --- END NEW ---
+
+  //TEST ONLY
+  //TEST ONLY
+  //TEST ONLY
+  //TEST ONLY
+  //TEST ONLY
+  Future<void> _debugForceUnlock() async {
+    setState(() => _isVerifying = true);
+
+    try {
+      // 1. HARDCODED DATA (From your provided Table - Row 1)
+      const String debugShopId = '3bda9261-977a-498b-9b09-d39e8276e582';
+      const String debugShelfId = '54eebf87-d2b1-41bf-a9e4-ec7427b33bbb';
+
+      // Mock User Profile
+      final Map<String, dynamic> debugUser = {
+        'shp_user_id': '4d99938a-78de-4b49-92ea-91d70cef675f',
+        'name': 'LEONG GAO CHONG',
+        'email': 'admin@debug.com',
+        'phone': '167618273',
+      };
+
+      // 2. Use fetched shop_id if available, otherwise use hardcoded fallback
+      final String actualShopId =
+          _shelfDetails?['shop_id']?.toString() ?? debugShopId;
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('DEBUG: Unlocking Shop: $actualShopId...')),
+        );
+      }
+
+      // 3. Trigger IoT Unlock Directly
+      final String sessionUuid = const Uuid().v4();
+
+      await _apiService.awsRemoteStart(
+        shopId: actualShopId,
+        shelfId: widget.shelfId, // or use debugShelfId if testing specifically
+        sessionId: sessionUuid,
+        customerId: debugUser['shp_user_id'],
+      );
+
+      setState(() => _isMonitoring = true);
+
+      // 4. Navigate to Shopping Screen
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ShoppingScreen(
+            shelfId: widget.shelfId,
+            userName: debugUser['name'],
+            shelfName: _shelfDetails?['shelf_name'] ?? 'Shelf 1',
+            shopId: actualShopId,
+            customerId: debugUser['shp_user_id'],
+            userEmail: debugUser['email'],
+            userPhone: debugUser['phone'],
+          ),
+        ),
+      );
+    } catch (e) {
+      _showError('Debug Error: $e');
+    } finally {
+      if (mounted) setState(() => _isVerifying = false);
+    }
+  }
+  //TEST ONLY
+  //TEST ONLY
+  //TEST ONLY
+  //TEST ONLY
+  //TEST ONLY
+}
+
+// --- MODIFIED: _ShelfInfoHeader to display Shop Name ---
+class _ShelfInfoHeader extends StatelessWidget {
+  final String shopName;
+  final String shelfName;
+  final String halalStatus;
+  final bool isHalal;
+
+  const _ShelfInfoHeader({
+    required this.shopName,
+    required this.shelfName,
+    required this.halalStatus,
+    required this.isHalal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color statusColor = isHalal ? Colors.green : Colors.red;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade600, Colors.indigo.shade700],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.shade100,
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            shelfName,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            shopName,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isHalal ? Icons.verified : Icons.no_food,
+                  color: statusColor,
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  halalStatus,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color accentColor;
+
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.accentColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: accentColor.withOpacity(0.2)),
+        color: accentColor.withOpacity(0.05),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: accentColor),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Colors.grey.shade600,
+                  letterSpacing: 0.5,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InstructionCard extends StatelessWidget {
+  final bool isHalal;
+
+  const _InstructionCard({required this.isHalal});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.grey.shade100,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.shield_moon_outlined,
+                color: isHalal ? Colors.green : Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Identity Check',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Quick face verification keeps the shelf secure and personalized '
+            'for you. It takes less than 10 seconds.',
+            style: TextStyle(fontSize: 15),
+          ),
+        ],
+      ),
+    );
+  }
 }

@@ -111,24 +111,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('My Profile'),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'My Profile',
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
         actions: [
-          IconButton(
-            icon: Icon(_isEditing ? Icons.save_outlined : Icons.edit_outlined),
+          TextButton.icon(
             onPressed: _toggleEdit,
+            icon: Icon(
+              _isEditing ? Icons.check : Icons.edit_outlined,
+              size: 20,
+              color: _isEditing ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
+            ),
+            label: Text(
+              _isEditing ? 'Save' : 'Edit',
+              style: TextStyle(
+                color: _isEditing ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              const SizedBox(height: 16),
               _buildPersonalDetailsCard(),
               const SizedBox(height: 16),
               _buildContactDetailsCard(),
+              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -136,66 +159,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- UI HELPER: Personal Details (Non-Editable) ---
-  // (No changes needed in this function)
   Widget _buildPersonalDetailsCard() {
-    final disabledFillColor = Colors.grey.shade200;
-    final inputDecoration = InputDecoration(
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none),
-        filled: true,
-        fillColor: disabledFillColor,
-        prefixIconColor: Colors.grey.shade600);
-    final titleStyle = Theme.of(context)
-        .textTheme
-        .titleLarge
-        ?.copyWith(fontWeight: FontWeight.bold);
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Personal Details', style: titleStyle),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              enabled: false, // Not editable
-              decoration: inputDecoration.copyWith(
-                labelText: 'Full Name',
-                prefixIcon: const Icon(Icons.person_outline),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    color: Color(0xFF6366F1),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Personal Details',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                'This information cannot be changed',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade600,
+                ),
               ),
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _icController,
-              enabled: false, // Not editable
-              decoration: inputDecoration.copyWith(
-                labelText: 'IC Number (NRIC)',
-                prefixIcon: const Icon(Icons.badge_outlined),
-              ),
+            const SizedBox(height: 20),
+            _buildInfoRow(
+              icon: Icons.person_outline,
+              label: 'Full Name',
+              value: _nameController.text,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _genderController,
-              enabled: false, // Not editable
-              decoration: inputDecoration.copyWith(
-                labelText: 'Gender',
-                prefixIcon: const Icon(Icons.wc_outlined),
-              ),
+            const Divider(height: 1, indent: 48),
+            _buildInfoRow(
+              icon: Icons.badge_outlined,
+              label: 'IC Number (NRIC)',
+              value: _icController.text,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _religionController,
-              enabled: false, // Not editable
-              decoration: inputDecoration.copyWith(
-                labelText: 'Religion',
-                prefixIcon: const Icon(Icons.mosque_outlined),
-              ),
+            const Divider(height: 1, indent: 48),
+            _buildInfoRow(
+              icon: Icons.wc_outlined,
+              label: 'Gender',
+              value: _genderController.text,
+            ),
+            const Divider(height: 1, indent: 48),
+            _buildInfoRow(
+              icon: Icons.mosque_outlined,
+              label: 'Religion',
+              value: _religionController.text,
             ),
           ],
         ),
@@ -203,34 +244,133 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- UI HELPER: Contact Details (Editable) ---
-  // (No changes needed in this function)
+  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.grey.shade600,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value.isEmpty ? 'Not provided' : value,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: value.isEmpty ? Colors.grey.shade400 : const Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContactDetailsCard() {
     final inputDecoration = InputDecoration(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      filled: true,
+      fillColor: _isEditing ? Colors.white : Colors.grey.shade50,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      prefixIconColor: _isEditing ? const Color(0xFF6366F1) : Colors.grey.shade600,
     );
-    final titleStyle = Theme.of(context)
-        .textTheme
-        .titleLarge
-        ?.copyWith(fontWeight: FontWeight.bold);
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Contact Information', style: titleStyle),
-            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.phone_outlined,
+                    color: Color(0xFF6366F1),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Contact Information',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1E293B),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
             TextFormField(
               controller: _phoneController,
-              enabled: _isEditing, // <-- Only editable when in edit mode
+              enabled: _isEditing,
               decoration: inputDecoration.copyWith(
                 labelText: 'Phone Number',
+                labelStyle: TextStyle(
+                  color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                ),
                 prefixIcon: const Icon(Icons.phone_outlined),
+                hintText: 'Enter phone number',
               ),
               keyboardType: TextInputType.phone,
               validator: (value) =>
@@ -239,10 +379,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _addressLine1Controller,
-              enabled: _isEditing, // <-- Only editable when in edit mode
+              enabled: _isEditing,
               decoration: inputDecoration.copyWith(
                 labelText: 'Address Line 1',
+                labelStyle: TextStyle(
+                  color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                ),
                 prefixIcon: const Icon(Icons.home_work_outlined),
+                hintText: 'Enter address line 1',
               ),
               validator: (value) =>
                   value!.isEmpty ? 'Please enter Address Line 1' : null,
@@ -250,10 +394,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 16),
             TextFormField(
               controller: _addressLine2Controller,
-              enabled: _isEditing, // <-- Only editable when in edit mode
+              enabled: _isEditing,
               decoration: inputDecoration.copyWith(
                 labelText: 'Address Line 2 (Optional)',
+                labelStyle: TextStyle(
+                  color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                ),
                 prefixIcon: const Icon(Icons.add_road_outlined),
+                hintText: 'Enter address line 2 (optional)',
               ),
             ),
             const SizedBox(height: 16),
@@ -262,10 +410,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _postcodeController,
-                    enabled: _isEditing, // <-- Only editable
+                    enabled: _isEditing,
                     decoration: inputDecoration.copyWith(
                       labelText: 'Postcode',
+                      labelStyle: TextStyle(
+                        color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                      ),
                       prefixIcon: const Icon(Icons.markunread_mailbox_outlined),
+                      hintText: 'Postcode',
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -276,10 +428,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _stateController,
-                    enabled: _isEditing, // <-- Only editable
+                    enabled: _isEditing,
                     decoration: inputDecoration.copyWith(
                       labelText: 'State',
+                      labelStyle: TextStyle(
+                        color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                      ),
                       prefixIcon: const Icon(Icons.location_city_outlined),
+                      hintText: 'State',
                     ),
                     validator: (value) => value!.isEmpty ? 'Required' : null,
                   ),

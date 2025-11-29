@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
@@ -70,6 +69,32 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isModelLoaded = false;
   bool _isProcessing = false; // For QR
   bool _isProcessingFrame = false; // For Face
+  bool _isTorchOn = false;
+  
+  Future<void> _toggleTorch() async {
+    try {
+      if (widget.scanMode == CameraScanMode.qrCode) {
+        // For QR code, use MobileScanner torch
+        await _qrScannerController.toggleTorch();
+      } else if (widget.scanMode == CameraScanMode.ocr) {
+        // For OCR, use CameraController torch
+        if (_manualCameraController != null && _manualCameraController!.value.isInitialized) {
+          await _manualCameraController!.setFlashMode(
+            _isTorchOn ? FlashMode.off : FlashMode.torch,
+          );
+        }
+      }
+      
+      if (mounted) {
+        setState(() {
+          _isTorchOn = !_isTorchOn;
+        });
+      }
+    } catch (e) {
+      debugPrint('Torch toggle failed: $e');
+    }
+  }
+
 
   // --- Liveness State ---
   String _livenessInstruction = 'Position your face in the oval';
@@ -567,43 +592,146 @@ class _CameraScreenState extends State<CameraScreen> {
     Widget ocrUI = const SizedBox.shrink();
     if (widget.scanMode == CameraScanMode.ocr) {
       final double boxWidth = MediaQuery.of(context).size.width * 0.9;
-      final double boxHeight = 220; 
+      final double boxHeight = 220;
       ocrUI = Stack(
-        alignment: Alignment.center,
         children: [
+          // Dim background overlay (matching QR UI style)
           Container(
-            width: boxWidth,
-            height: boxHeight,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 2),
-              borderRadius: BorderRadius.circular(12),
+            color: Colors.black.withOpacity(0.35),
+          ),
+          // Frame border with enhanced styling
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              width: boxWidth,
+              height: boxHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.8),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 16,
+                  ),
+                ],
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.06),
+                      Colors.transparent,
+                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: const Center(
+                  child: Icon(
+                    Icons.credit_card,
+                    size: 50,
+                    color: Colors.white70,
+                  ),
+                ),
+              ),
             ),
           ),
-          const Positioned(
-            bottom: 140,
-            child: Text(
-              'Position your IC within the frame',
-              style: TextStyle(color: Colors.white, fontSize: 16),
-            ),
-          ),
+          // Close button (matching QR UI style)
           Positioned(
-            bottom: 50,
-            child: FloatingActionButton(
-              onPressed: _isModelLoaded ? _onCapturePressed : null,
-              backgroundColor: _isModelLoaded ? null : Colors.grey[700],
-              child: _isDetecting
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : (!_isModelLoaded
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Icon(Icons.camera_alt)),
+            top: MediaQuery.of(context).padding.top + 18,
+            left: 16,
+            child: CircleAvatar(
+              backgroundColor: Colors.black54,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             ),
           ),
+          // Flashlight button (positioned above instructions)
           Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 30),
-              onPressed: () => Navigator.of(context).pop(),
+            bottom: MediaQuery.of(context).padding.bottom + 200,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton.icon(
+                onPressed: _toggleTorch,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                ),
+                icon: Icon(
+                  _isTorchOn ? Icons.flash_off : Icons.flash_on,
+                  color: Colors.white,
+                ),
+                label: Text(_isTorchOn ? 'Turn Off Flash' : 'Turn On Flash'),
+              ),
+            ),
+          ),
+          // Instructions text (matching QR UI style)
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 140,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: const [
+                Text(
+                  'Position your IC within the frame',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Ensure good lighting and keep the IC flat',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          // Capture button (enhanced styling)
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 10,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: FloatingActionButton.large(
+                onPressed: _isModelLoaded && !_isDetecting ? _onCapturePressed : null,
+                backgroundColor: _isModelLoaded && !_isDetecting 
+                    ? Colors.white 
+                    : Colors.grey.shade700,
+                child: _isDetecting
+                    ? const CircularProgressIndicator(
+                        color: Colors.black87,
+                        strokeWidth: 3,
+                      )
+                    : (!_isModelLoaded
+                        ? const CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          )
+                        : const Icon(
+                            Icons.camera_alt,
+                            color: Colors.black87,
+                            size: 32,
+                          )),
+              ),
             ),
           ),
         ],
@@ -613,31 +741,101 @@ class _CameraScreenState extends State<CameraScreen> {
     // --- QR UI ---
     Widget qrUI = const SizedBox.shrink();
     if (widget.scanMode == CameraScanMode.qrCode) {
-      final double boxWidth = MediaQuery.of(context).size.width * 0.8;
+      final double boxWidth = MediaQuery.of(context).size.width * 0.78;
       qrUI = Stack(
-        alignment: Alignment.center,
         children: [
+          // Dim background overlay
           Container(
-            width: boxWidth,
-            height: boxWidth,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 2),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            color: Colors.black.withOpacity(0.35),
           ),
-          const Positioned(
-            bottom: 140,
-            child: Text(
-              'Scan the shelf QR code',
-              style: TextStyle(color: Colors.white, fontSize: 16),
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              width: boxWidth,
+              height: boxWidth,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.8),
+                  width: 3,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 16,
+                  ),
+                ],
+              ),
+              // Frame interior is transparent - no gradient overlay
+              child: const Center(
+                child: Icon(
+                  Icons.qr_code_scanner,
+                  size: 60,
+                  color: Colors.white70,
+                ),
+              ),
             ),
           ),
           Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 30),
-              onPressed: () => Navigator.of(context).pop(),
+            top: MediaQuery.of(context).padding.top + 18,
+            left: 16,
+            child: CircleAvatar(
+              backgroundColor: Colors.black54,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 140,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: const [
+                Text(
+                  'Align QR within the frame',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Stand about 20 cm away for best results',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            bottom: MediaQuery.of(context).padding.bottom + 60,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: ElevatedButton.icon(
+                onPressed: _toggleTorch,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                ),
+                icon: Icon(
+                  _isTorchOn ? Icons.flash_off : Icons.flash_on,
+                  color: Colors.white,
+                ),
+                label: Text(_isTorchOn ? 'Turn Off Flash' : 'Turn On Flash'),
+              ),
             ),
           ),
         ],
