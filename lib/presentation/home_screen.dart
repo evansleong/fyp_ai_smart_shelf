@@ -11,6 +11,9 @@ import 'profile_screen.dart';
 import 'search_shelves_screen.dart';
 import 'register_details_screen.dart';
 
+// RouteObserver to detect when routes become active
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
+
 class HomeScreen extends StatefulWidget {
   final String shpUserId;
 
@@ -23,14 +26,50 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   final ApiService _apiService = ApiService();
 
   int _pageIndex = 0;
   late final List<Widget> _pages;
+  final GlobalKey<_HomeScreenBodyState> _homeScreenBodyKey = GlobalKey<_HomeScreenBodyState>();
 
   Map<String, dynamic>? _userProfileData;
   bool _isLoadingProfile = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Subscribe to route changes
+    final ModalRoute? route = ModalRoute.of(context);
+    if (route != null) {
+      routeObserver.subscribe(this, route as PageRoute);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPush() {
+    // Called when the current route has been pushed
+    _refreshHomeData();
+  }
+
+  @override
+  void didPopNext() {
+    // Called when the top route has been popped off, and this route shows up
+    _refreshHomeData();
+  }
+
+  void _refreshHomeData() {
+    // Refresh transaction overview when home screen becomes visible
+    if (_pageIndex == 0) {
+      _homeScreenBodyKey.currentState?.refreshTransactionOverview();
+    }
+  }
 
   @override
   void initState() {
@@ -39,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _pages = [
       _HomeScreenBody(
+        key: _homeScreenBodyKey,
         userProfileData: _userProfileData,
         isLoadingProfile: _isLoadingProfile,
         shpUserId: widget.shpUserId,
@@ -59,6 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoadingProfile = false;
           // Rebuild _HomeScreenBody with the loaded customerId
           _pages[0] = _HomeScreenBody(
+            key: _homeScreenBodyKey,
             userProfileData: _userProfileData,
             isLoadingProfile: _isLoadingProfile,
             shpUserId: widget.shpUserId,
@@ -72,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoadingProfile = false;
           // Rebuild _HomeScreenBody even on error (customerId will be null)
           _pages[0] = _HomeScreenBody(
+            key: _homeScreenBodyKey,
             userProfileData: _userProfileData,
             isLoadingProfile: _isLoadingProfile,
             shpUserId: widget.shpUserId,
@@ -121,13 +163,15 @@ class _HomeScreenState extends State<HomeScreen> {
           throw Exception('Shelf lookup missing shop_id');
         }
         if (!mounted) return;
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ShelfVerificationScreen(
               shelfId: qrCodeResult,
             ),
           ),
         );
+        // Refresh when returning from shopping
+        _refreshHomeData();
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -218,6 +262,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {
                   _pageIndex = 0;
                 });
+                // Refresh transaction overview when switching to home tab
+                _homeScreenBodyKey.currentState?.refreshTransactionOverview();
               },
               color: _pageIndex == 0
                   ? Theme.of(context).colorScheme.primary
@@ -282,6 +328,7 @@ class _HomeScreenBody extends StatefulWidget {
   final String? customerId;
 
   const _HomeScreenBody({
+    super.key,
     required this.userProfileData,
     required this.isLoadingProfile,
     required this.shpUserId,
@@ -328,6 +375,13 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     super.didUpdateWidget(oldWidget);
     // When customerId becomes available (after profile loads), fetch data.
     if (widget.customerId != null && oldWidget.customerId == null) {
+      _fetchTransactionOverview();
+    }
+  }
+
+  /// Public method to refresh transaction overview
+  void refreshTransactionOverview() {
+    if (widget.customerId != null) {
       _fetchTransactionOverview();
     }
   }

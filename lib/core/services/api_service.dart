@@ -61,6 +61,12 @@ class ApiService {
       print("Status: ${isLive ? 'REAL PERSON' : 'FAKE/SPOOF'}");
       print("Confidence Score: $confidence%");
       print("==========================================");
+
+      if (!isLive) {
+       print("❌ SECURITY ALERT: Server returned 200 but Confidence is low ($confidence%).");
+       throw Exception('Liveness Verification Failed: Spoof Detected or Score Missing.');
+    }
+
       return responseBody['user'];
     } else {
       // 🔴 PRINT FAILURE

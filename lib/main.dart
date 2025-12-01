@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'presentation/welcome_screen.dart';
-import 'presentation/auth_check_screen.dart'; 
+import 'presentation/auth_check_screen.dart';
+import 'presentation/home_screen.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,6 +38,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
+      navigatorObservers: [routeObserver],
       home: const AuthCheckScreen(),
     );
   }
