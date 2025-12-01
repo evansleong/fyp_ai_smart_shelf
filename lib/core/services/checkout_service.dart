@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_stripe/flutter_stripe.dart';
 
-const String cartsApiBase = 'https://twhhc88zla.execute-api.ap-southeast-1.amazonaws.com/prod';
-const String paymentsApiBase = 'https://e036h7bhn2.execute-api.ap-southeast-1.amazonaws.com/prod';
+const String cartsApiBase =
+    'https://twhhc88zla.execute-api.ap-southeast-1.amazonaws.com/prod';
+const String paymentsApiBase =
+    'https://e036h7bhn2.execute-api.ap-southeast-1.amazonaws.com/prod';
 const String cartsApiKey = '';
 
 Future<void> checkout({
@@ -14,33 +16,41 @@ Future<void> checkout({
   required String phone,
   required String email,
   required double amount,
+  required int pointsToRedeem,
 }) async {
-  final createIntentResp = await http.post(
-    Uri.parse('$paymentsApiBase/payments/create-intent'),
-    headers: {'Content-Type': 'application/json'},
-    body: jsonEncode({
-      'customer_id': customerId,
-      'shop_id': shopId,
-      'amount': (amount * 100).round(),
-    }),
-  );
-  if (createIntentResp.statusCode != 200) {
-    throw Exception('Failed to create payment intent: ${createIntentResp.body}');
+  String paymentIntentId =
+      'POINTS-REDEMPTION-${DateTime.now().millisecondsSinceEpoch}';
+  if (amount > 0.00) {
+    final createIntentResp = await http.post(
+      Uri.parse('$paymentsApiBase/payments/create-intent'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'customer_id': customerId,
+        'shop_id': shopId,
+        'amount': (amount * 100).round(),
+      }),
+    );
+    if (createIntentResp.statusCode != 200) {
+      throw Exception(
+          'Failed to create payment intent: ${createIntentResp.body}');
+    }
+    final Map<String, dynamic> piData =
+        jsonDecode(createIntentResp.body) as Map<String, dynamic>;
+    final String clientSecret = piData['clientSecret'] as String;
+    //final String paymentIntentId = piData['paymentIntentId'] as String;
+    paymentIntentId = piData['paymentIntentId'] as String;
+
+    await Stripe.instance.initPaymentSheet(
+      paymentSheetParameters: SetupPaymentSheetParameters(
+        paymentIntentClientSecret: clientSecret,
+        merchantDisplayName: 'SmartShelf',
+        style: ThemeMode.system,
+        allowsDelayedPaymentMethods: true,
+      ),
+    );
+
+    await Stripe.instance.presentPaymentSheet();
   }
-  final Map<String, dynamic> piData = jsonDecode(createIntentResp.body) as Map<String, dynamic>;
-  final String clientSecret = piData['clientSecret'] as String;
-  final String paymentIntentId = piData['paymentIntentId'] as String;
-
-  await Stripe.instance.initPaymentSheet(
-    paymentSheetParameters: SetupPaymentSheetParameters(
-      paymentIntentClientSecret: clientSecret,
-      merchantDisplayName: 'SmartShelf',
-      style: ThemeMode.system,
-      allowsDelayedPaymentMethods: true,
-    ),
-  );
-
-  await Stripe.instance.presentPaymentSheet();
 
   final Map<String, dynamic> finalizePayload = {
     'action': 'finalize_checkout',
@@ -49,10 +59,11 @@ Future<void> checkout({
       'customer_id': customerId,
       'payment_status': 'succeeded',
       'payment_reference': paymentIntentId,
-      'payment_method': 'card',
+      'payment_method': amount > 0 ? 'card' : 'points',
       'name': name,
       'phone': phone,
       'email': email,
+      'points_to_redeem': pointsToRedeem,
     }
   };
 
@@ -69,6 +80,7 @@ Future<void> checkout({
     throw Exception('Finalize checkout failed: ${finalizeResp.body}');
   }
 
-  final Map<String, dynamic> finalizeData = jsonDecode(finalizeResp.body) as Map<String, dynamic>;
+  final Map<String, dynamic> finalizeData =
+      jsonDecode(finalizeResp.body) as Map<String, dynamic>;
   finalizeData.toString();
 }

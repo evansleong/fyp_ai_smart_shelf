@@ -18,44 +18,230 @@ class TransactionHistoryScreen extends StatefulWidget {
 
 class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   final ApiService _apiService = ApiService();
-  late Future<List<dynamic>> _transactionsFuture;
-  
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  List<dynamic> _allTransactions = [];
+  List<dynamic> _filteredTransactions = [];
+
+  // --- NEW: Map to store points from database table ---
+  // Key: order_id, Value: points_earned
+  Map<String, int> _pointsMap = {};
+  Map<String, int> _pointsByOrderId = {}; // Direct order_id -> points mapping
+
   // Filter state
   List<String> _selectedPaymentTypes = [];
   DateTime? _startDate;
   DateTime? _endDate;
   String? _selectedDateRangePreset;
-  
-  // Available payment types (will be extracted from transactions)
   Set<String> _availablePaymentTypes = {};
 
   @override
   void initState() {
     super.initState();
-    _transactionsFuture =
-        _apiService.getCustomerOrdersHistory(widget.shpUserId);
-    
-    // Set default date range to last 30 days
+    // Default date range
     _endDate = DateTime.now();
     _startDate = DateTime.now().subtract(const Duration(days: 30));
     _selectedDateRangePreset = 'Last 30 days';
+
+    _loadData();
   }
 
-  List<dynamic> _filterTransactions(List<dynamic> transactions) {
-    // Extract available payment types
-    _availablePaymentTypes = transactions
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // 1. Fetch Orders and Points in parallel
+      final results = await Future.wait([
+        _apiService.getCustomerOrdersHistory(widget.shpUserId),
+        _apiService.getPointsHistory(widget.shpUserId),
+      ]);
+
+      final orders = results[0];
+      final pointsHistory = results[1];
+
+      print("DEBUG: Orders Found: ${orders.length}");
+      print("DEBUG: Points History Found: ${pointsHistory.length}");
+
+      // 2. Build the Points Map from the Table Data
+      // Since history format doesn't include order_id, we'll create a composite key
+      // using date + time + amount to match transactions
+      final Map<String, int> pointsByOrderId = {}; // Key: order_id, Value: points
+
+      for (var p in pointsHistory) {
+        // Handle both String and int formats safely
+        final rawPoints = p['points_earned'];
+        int pts = 0;
+
+        if (rawPoints is int) {
+          pts = rawPoints;
+        } else if (rawPoints is String) {
+          pts = int.tryParse(rawPoints) ?? 0;
+        } else if (rawPoints is Map && rawPoints.containsKey('N')) {
+          // Handle { "N": "3" } format
+          pts = int.tryParse(rawPoints['N'].toString()) ?? 0;
+        }
+
+        // Get Order ID safely
+        String? oId = p['order_id']?.toString();
+
+        if (oId != null && pts > 0) {
+          pointsByOrderId[oId] = pts;
+          
+          // Try to find matching transaction by order_id to build composite key
+          // We'll need to fetch the full order details or match by other means
+          // For now, store by order_id and we'll try to match in the card builder
+        }
+      }
+      
+      // Store both maps for lookup
+      _pointsByOrderId = pointsByOrderId;
+
+      print("DEBUG: Final Points Map Created with ${pointsByOrderId.length} entries.");
+      // Print keys to verify they match order IDs
+      if (pointsByOrderId.isNotEmpty) {
+        print("DEBUG: Map Keys (first 5): ${pointsByOrderId.keys.take(5).toList()}");
+      }
+      
+      // Debug: Print all fields from first transaction to find order ID
+      if (orders.isNotEmpty) {
+        print("DEBUG: All fields in first transaction:");
+        final firstTransaction = orders[0];
+        firstTransaction.keys.forEach((key) {
+          print("  $key: ${firstTransaction[key]}");
+        });
+        print("DEBUG: Looking for order ID field...");
+      }
+
+      // 3. Try to match orders with points by fetching full order details
+      // Since history format doesn't have order_id, we need to get it from the regular orders endpoint
+      try {
+        // Note: getCustomerOrders might need customer_id instead of shp_user_id
+        // But let's try with shp_user_id first
+        final fullOrders = await _apiService.getCustomerOrders(widget.shpUserId);
+        
+        print("DEBUG: Full orders fetched: ${fullOrders.length}");
+        if (fullOrders.isNotEmpty) {
+          print("DEBUG: First full order keys: ${fullOrders[0].keys.toList()}");
+        }
+        
+        // Build a map of composite key (date+amount) -> order_id (simpler, more reliable)
+        final Map<String, String> compositeKeyToOrderId = {};
+        for (var order in fullOrders) {
+          final orderId = order['order_id']?.toString() ?? order['orderId']?.toString();
+          if (orderId != null) {
+            // Create composite key from order data
+            final createdAt = order['created_at']?.toString() ?? '';
+            final summary = order['summary'];
+            double? totalPrice;
+            if (summary != null && summary['total_price'] != null) {
+              final tp = summary['total_price'];
+              if (tp is num) {
+                totalPrice = tp.toDouble();
+              } else if (tp is Map && tp.containsKey('N')) {
+                totalPrice = double.tryParse(tp['N'].toString());
+              } else if (tp is String) {
+                totalPrice = double.tryParse(tp);
+              }
+            }
+            
+            if (createdAt.isNotEmpty && totalPrice != null) {
+              try {
+                final dateTime = DateTime.parse(createdAt);
+                final dateStr = dateTime.toIso8601String().split('T')[0]; // YYYY-MM-DD
+                final amountStr = totalPrice.toStringAsFixed(2);
+                
+                // Create composite key using date + amount (more reliable than including time)
+                final compositeKey = '$dateStr|$amountStr';
+                compositeKeyToOrderId[compositeKey] = orderId;
+                print("DEBUG: Mapped key '$compositeKey' -> order_id '$orderId'");
+              } catch (e) {
+                print("DEBUG: Error parsing order date: $e, createdAt: $createdAt");
+              }
+            }
+          }
+        }
+        
+        print("DEBUG: Composite key map size: ${compositeKeyToOrderId.length}");
+        
+        // Now build the final points map using composite keys from transactions
+        final Map<String, int> finalPointsMap = {};
+        int matchedCount = 0;
+        for (var transaction in orders) {
+          final dateStr = transaction['date']?.toString() ?? '';
+          final amountStr = transaction['amount']?.toString() ?? '';
+          
+          if (dateStr.isNotEmpty && amountStr.isNotEmpty) {
+            try {
+              // Use date + amount only (simpler matching)
+              final normalizedDate = dateStr; // Already in YYYY-MM-DD format
+              final normalizedAmount = double.tryParse(amountStr)?.toStringAsFixed(2) ?? amountStr;
+              
+              final compositeKey = '$normalizedDate|$normalizedAmount';
+              final orderId = compositeKeyToOrderId[compositeKey];
+              
+              if (orderId != null && _pointsByOrderId.containsKey(orderId)) {
+                finalPointsMap[compositeKey] = _pointsByOrderId[orderId]!;
+                matchedCount++;
+                print("DEBUG: Matched transaction '$compositeKey' -> order_id '$orderId' -> ${_pointsByOrderId[orderId]} points");
+              } else {
+                print("DEBUG: No match for transaction '$compositeKey' (orderId: $orderId, hasPoints: ${orderId != null && _pointsByOrderId.containsKey(orderId)})");
+              }
+            } catch (e) {
+              print("DEBUG: Error processing transaction: $e");
+            }
+          }
+        }
+        
+        print("DEBUG: Final points map size: ${finalPointsMap.length}, Matched: $matchedCount");
+        
+        if (mounted) {
+          setState(() {
+            _allTransactions = orders;
+            _pointsMap = finalPointsMap; // Store the composite key map
+            _filterTransactions(); // Initial filter
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        print("DEBUG: Error matching orders with points: $e");
+        // Fallback: just use empty map
+        if (mounted) {
+          setState(() {
+            _allTransactions = orders;
+            _pointsMap = {};
+            _filterTransactions();
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print("DEBUG: Error loading data: $e");
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  } 
+
+  void _filterTransactions() {
+    _availablePaymentTypes = _allTransactions
         .map((t) => (t['payment_method'] ?? 'Card').toString())
         .toSet();
-    
-    List<dynamic> filtered = transactions;
-    
-    // Filter by date range (only if both dates are set)
+
+    List<dynamic> filtered = List.from(_allTransactions);
+
     if (_startDate != null && _endDate != null) {
       filtered = filtered.where((transaction) {
         final String dateStr = transaction['date'] ?? '';
         final String timeStr = transaction['time'] ?? '';
         if (dateStr.isEmpty) return false;
-        
+
         try {
           final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
           DateTime transactionDate;
@@ -64,38 +250,56 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           } else {
             transactionDate = DateTime.parse(dateStr);
           }
-          
-          // Set time to start of day for startDate and end of day for endDate
-          final start = DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
-          final end = DateTime(_endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
-          
-          return transactionDate.isAfter(start.subtract(const Duration(seconds: 1))) &&
-                 transactionDate.isBefore(end.add(const Duration(seconds: 1)));
+
+          final start =
+              DateTime(_startDate!.year, _startDate!.month, _startDate!.day);
+          final end = DateTime(
+              _endDate!.year, _endDate!.month, _endDate!.day, 23, 59, 59);
+
+          return transactionDate
+                  .isAfter(start.subtract(const Duration(seconds: 1))) &&
+              transactionDate.isBefore(end.add(const Duration(seconds: 1)));
         } catch (e) {
           return false;
         }
       }).toList();
     }
-    
-    // Filter by payment type
+
     if (_selectedPaymentTypes.isNotEmpty) {
       filtered = filtered.where((transaction) {
-        final paymentMethod = (transaction['payment_method'] ?? 'Card').toString();
+        final paymentMethod =
+            (transaction['payment_method'] ?? 'Card').toString();
         return _selectedPaymentTypes.contains(paymentMethod);
       }).toList();
     }
-    
-    return filtered;
+
+    // Sort Descending
+    filtered.sort((a, b) {
+      try {
+        final String aDateStr = a['date'] ?? '';
+        final String aTimeStr = a['time'] ?? '';
+        final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
+        final DateTime aDateTime = inputFormat.parse('$aDateStr $aTimeStr');
+
+        final String bDateStr = b['date'] ?? '';
+        final String bTimeStr = b['time'] ?? '';
+        final DateTime bDateTime = inputFormat.parse('$bDateStr $bTimeStr');
+        return bDateTime.compareTo(aDateTime);
+      } catch (e) {
+        return 0;
+      }
+    });
+
+    setState(() {
+      _filteredTransactions = filtered;
+    });
   }
 
   String _getDateRangeDisplay() {
-    if (_startDate == null || _endDate == null) {
-      return 'All transactions';
-    }
+    if (_startDate == null || _endDate == null) return 'All transactions';
     final dateFormat = DateFormat('dd MMM yy');
     return '${dateFormat.format(_startDate!)} - ${dateFormat.format(_endDate!)}';
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -104,19 +308,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        title: const Text(
-          'Transaction History',
-          style: TextStyle(
-            color: Color(0xFF1E293B),
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
-        ),
+        title: const Text('Transaction History',
+            style: TextStyle(
+                color: Color(0xFF1E293B),
+                fontWeight: FontWeight.w600,
+                fontSize: 18)),
         iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
       ),
       body: Column(
         children: [
-          // Date range display bar
+          // Filter Bar
           Container(
             color: Colors.grey.shade200,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -127,205 +328,95 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                     onTap: _showDateRangeBottomSheet,
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.calendar_today,
-                          size: 18,
-                          color: Color(0xFF1E293B),
-                        ),
+                        const Icon(Icons.calendar_today,
+                            size: 18, color: Color(0xFF1E293B)),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(
-                            _getDateRangeDisplay(),
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF1E293B),
-                            ),
-                          ),
+                          child: Text(_getDateRangeDisplay(),
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF1E293B))),
                         ),
-                        const Icon(
-                          Icons.arrow_drop_down,
-                          color: Color(0xFF1E293B),
-                        ),
+                        const Icon(Icons.arrow_drop_down,
+                            color: Color(0xFF1E293B)),
                       ],
                     ),
                   ),
                 ),
-                Container(
-                  width: 1,
-                  height: 20,
-                  color: Colors.grey.shade400,
-                ),
+                Container(width: 1, height: 20, color: Colors.grey.shade400),
                 const SizedBox(width: 16),
                 InkWell(
                   onTap: _showFilterBottomSheet,
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Filter',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_drop_down,
-                        color: Color(0xFF1E293B),
-                      ),
+                      Text('Filter',
+                          style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1E293B))),
+                      Icon(Icons.arrow_drop_down, color: Color(0xFF1E293B)),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          // Transaction list
+
+          // Content
           Expanded(
-            child: FutureBuilder<List<dynamic>>(
-              future: _transactionsFuture,
-              builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF6366F1),
-              ),
-            );
-          }
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF6366F1)))
+                : _errorMessage != null
+                    ? Center(child: Text(_errorMessage!))
+                    : _filteredTransactions.isEmpty
+                        ? const Center(child: Text("No transactions found"))
+                        : ListView.builder(
+                            itemCount: _filteredTransactions.length +
+                                1, // +1 for hacky header grouping
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemBuilder: (context, index) {
+                              if (index == _filteredTransactions.length)
+                                return const SizedBox.shrink();
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load history',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
+                              // Simple grouping logic for display
+                              final transaction = _filteredTransactions[index];
+                              final String dateString =
+                                  transaction['date'] ?? '';
+                              String monthHeader = "";
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No transactions yet',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your transaction history will appear here',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
+                              // Check if this is the first item of the month
+                              bool showHeader = false;
+                              try {
+                                final DateTime date =
+                                    DateTime.parse(dateString);
+                                final headerFormat = DateFormat('MMMM yyyy');
+                                monthHeader = headerFormat.format(date);
 
-          final allTransactions = snapshot.data!;
-          
-          // Filter transactions
-          final transactions = _filterTransactions(allTransactions);
-          
-          transactions.sort((a, b) {
-            try {
-              final String aDateStr = a['date'] ?? '';
-              final String aTimeStr = a['time'] ?? '';
-              final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
-              final DateTime aDateTime =
-                  inputFormat.parse('$aDateStr $aTimeStr');
+                                if (index == 0) {
+                                  showHeader = true;
+                                } else {
+                                  final prevDate = DateTime.parse(
+                                      _filteredTransactions[index - 1]['date']);
+                                  if (headerFormat.format(prevDate) !=
+                                      monthHeader) {
+                                    showHeader = true;
+                                  }
+                                }
+                              } catch (_) {}
 
-              final String bDateStr = b['date'] ?? '';
-              final String bTimeStr = b['time'] ?? '';
-              final DateTime bDateTime =
-                  inputFormat.parse('$bDateStr $bTimeStr');
-
-              return bDateTime.compareTo(aDateTime);
-            } catch (e) {
-              return 0;
-            }
-          });
-
-          final List<dynamic> groupedItems = [];
-          String? currentMonthHeader;
-          final DateFormat headerFormat = DateFormat('MMMM yyyy');
-
-          for (final transaction in transactions) {
-            final String dateString = transaction['date'] ?? '';
-            String monthHeader = "UNKNOWN MONTH";
-            try {
-              final DateTime date = DateTime.parse(dateString);
-              monthHeader = headerFormat.format(date);
-            } catch (e) {
-              if (dateString.isNotEmpty) {
-                monthHeader = dateString;
-              }
-            }
-
-            if (monthHeader != currentMonthHeader) {
-              currentMonthHeader = monthHeader;
-              groupedItems.add(monthHeader);
-            }
-            groupedItems.add(transaction);
-          }
-
-          return ListView.builder(
-            itemCount: groupedItems.length,
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemBuilder: (context, index) {
-              final item = groupedItems[index];
-
-              if (item is String) {
-                return _buildMonthHeader(item);
-              }
-
-              if (item is Map<String, dynamic>) {
-                return _buildTransactionCard(item, context);
-              }
-              return const SizedBox.shrink();
-            },
-          );
-              },
-            ),
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (showHeader)
+                                    _buildMonthHeader(monthHeader),
+                                  _buildTransactionCard(transaction, context),
+                                ],
+                              );
+                            },
+                          ),
           ),
         ],
       ),
@@ -335,60 +426,82 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   Widget _buildMonthHeader(String month) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-      child: Text(
-        month,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey.shade600,
-          letterSpacing: 0.3,
-        ),
-      ),
+      child: Text(month,
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey.shade600,
+              letterSpacing: 0.3)),
     );
   }
 
-  Widget _buildTransactionCard(Map<String, dynamic> transaction, BuildContext context) {
+  Widget _buildTransactionCard(
+      Map<String, dynamic> transaction, BuildContext context) {
+    // 1. Calculate Amount Paid (Same logic as before)
     double amount = 0.0;
-    if (transaction['amount'] != null) {
+    if (transaction['summary'] != null &&
+        transaction['summary']['total_price'] != null) {
+      amount =
+          double.tryParse(transaction['summary']['total_price'].toString()) ??
+              0.0;
+    } else if (transaction['amount'] != null) {
       amount = double.tryParse(transaction['amount'].toString()) ?? 0.0;
     }
+
+    // 2. GET REAL POINTS FROM DATABASE MAP
+    // Since history format doesn't have order_id, use composite key (date+amount)
+    final String dateStr = transaction['date']?.toString() ?? '';
+    final String amountStr = transaction['amount']?.toString() ?? '';
+    
+    int pointsEarned = 0;
+    if (dateStr.isNotEmpty && amountStr.isNotEmpty) {
+      try {
+        // Use date + amount only (simpler matching)
+        final normalizedDate = dateStr; // Already in YYYY-MM-DD format
+        final normalizedAmount = double.tryParse(amountStr)?.toStringAsFixed(2) ?? amountStr;
+        
+        final compositeKey = '$normalizedDate|$normalizedAmount';
+        pointsEarned = _pointsMap[compositeKey] ?? 0;
+      } catch (e) {
+        // If parsing fails, points remain 0
+      }
+    }
+
     final String displayAmount = 'RM ${amount.abs().toStringAsFixed(2)}';
-    
     final paymentMethod = transaction['payment_method'] ?? 'Card';
-    final shopName = transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
+    final shopName =
+        transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
     
-    final String dateStr = transaction['date'] ?? '';
-    final String timeStr = transaction['time'] ?? '';
+    // Date formatting for display
+    final String displayDateStr = transaction['date']?.toString() ?? '';
+    final String displayTimeStr = transaction['time']?.toString() ?? '';
     String displayDate = '';
     String displayTime = '';
-
-    if (dateStr.isNotEmpty && timeStr.isNotEmpty) {
+    if (displayDateStr.isNotEmpty && displayTimeStr.isNotEmpty) {
       try {
         final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
         final dateTimeFormat = DateFormat('dd MMM yyyy');
         final timeFormat = DateFormat('hh:mm a');
-        final DateTime parsedDateTime = inputFormat.parse('$dateStr $timeStr');
+        final DateTime parsedDateTime = inputFormat.parse('$displayDateStr $displayTimeStr');
         displayDate = dateTimeFormat.format(parsedDateTime);
         displayTime = timeFormat.format(parsedDateTime);
-      } catch (e) {
-        displayDate = dateStr;
-        displayTime = timeStr;
+      } catch (_) {
+        displayDate = displayDateStr;
+        displayTime = displayTimeStr;
       }
     }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ]),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -396,10 +509,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => TransactionDetailsScreen(
-                  transaction: transaction,
-                ),
-              ),
+                  builder: (_) =>
+                      TransactionDetailsScreen(
+                        transaction: transaction,
+                        shpUserId: widget.shpUserId,
+                      )),
             );
           },
           borderRadius: BorderRadius.circular(16),
@@ -411,56 +525,40 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.shopping_bag_outlined,
-                    color: Color(0xFF6366F1),
-                    size: 24,
-                  ),
+                      color: const Color(0xFF6366F1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(Icons.shopping_bag_outlined,
+                      color: Color(0xFF6366F1), size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        shopName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1E293B),
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      Text(shopName,
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1E293B)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 4),
                       Row(
                         children: [
                           if (displayDate.isNotEmpty) ...[
-                            Text(
-                              displayDate,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                            Text(
-                              ' • ',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey.shade400,
-                              ),
-                            ),
+                            Text(displayDate,
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey.shade600)),
+                            Text(' • ',
+                                style: TextStyle(
+                                    fontSize: 13, color: Colors.grey.shade400)),
                           ],
                           Text(
-                            displayTime.isNotEmpty ? displayTime : paymentMethod,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
+                              displayTime.isNotEmpty
+                                  ? displayTime
+                                  : paymentMethod,
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey.shade600)),
                         ],
                       ),
                     ],
@@ -469,32 +567,41 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      displayAmount,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFDC2626),
+                    // Points earned badge - displayed ABOVE the amount
+                    if (pointsEarned > 0) ...[
+                      Text(
+                        '+$pointsEarned pts',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF10B981), // Green color as originally requested
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 2),
+                    ],
+                    
+                    // Amount - blue if paid with points, red otherwise
+                    Text(displayAmount,
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: paymentMethod.toLowerCase() == 'points' 
+                                ? const Color(0xFF2563EB) // Blue for points
+                                : const Color(0xFFDC2626))), // Red for other methods
+
+                    // Payment method badge (always shown)
                     const SizedBox(height: 2),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
+                          horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        paymentMethod,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(4)),
+                      child: Text(paymentMethod,
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade700)),
                     ),
                   ],
                 ),
@@ -506,6 +613,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
+  // ... (Keep your Bottom Sheet methods and classes below: _showDateRangeBottomSheet, etc.) ...
   void _showDateRangeBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -521,6 +629,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             _endDate = end;
             _selectedDateRangePreset = preset;
           });
+          _filterTransactions(); // Apply filter immediately
         },
       ),
     );
@@ -538,12 +647,14 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           setState(() {
             _selectedPaymentTypes = selected;
           });
+          _filterTransactions(); // Apply filter immediately
         },
       ),
     );
   }
 }
 
+// ... Paste your existing _DateRangeBottomSheet and _FilterBottomSheet classes here ...
 class _DateRangeBottomSheet extends StatefulWidget {
   final DateTime? startDate;
   final DateTime? endDate;
@@ -586,7 +697,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
       case 'Yesterday':
         final yesterday = now.subtract(const Duration(days: 1));
         start = DateTime(yesterday.year, yesterday.month, yesterday.day);
-        end = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
+        end = DateTime(
+            yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
         break;
       case 'Last 7 days':
         start = now.subtract(const Duration(days: 6));
@@ -633,7 +745,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
     );
     if (picked != null) {
       setState(() {
-        _tempEndDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+        _tempEndDate =
+            DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
         _tempPreset = null; // Custom range
       });
     }
@@ -753,7 +866,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
                               const SizedBox(height: 4),
                               Text(
                                 _tempStartDate != null
-                                    ? DateFormat('dd MMM yy').format(_tempStartDate!)
+                                    ? DateFormat('dd MMM yy')
+                                        .format(_tempStartDate!)
                                     : 'Select date',
                                 style: const TextStyle(
                                   fontSize: 16,
@@ -803,7 +917,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
                               const SizedBox(height: 4),
                               Text(
                                 _tempEndDate != null
-                                    ? DateFormat('dd MMM yy').format(_tempEndDate!)
+                                    ? DateFormat('dd MMM yy')
+                                        .format(_tempEndDate!)
                                     : 'Select date',
                                 style: const TextStyle(
                                   fontSize: 16,
@@ -829,7 +944,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  widget.onDateRangeSelected(_tempStartDate, _tempEndDate, _tempPreset);
+                  widget.onDateRangeSelected(
+                      _tempStartDate, _tempEndDate, _tempPreset);
                   Navigator.pop(context);
                 },
                 style: ElevatedButton.styleFrom(
@@ -860,7 +976,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
       onTap: () => _selectPreset(preset),
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: (MediaQuery.of(context).size.width - 64) / 2, // Fixed width: (screen width - padding) / 2
+        width: (MediaQuery.of(context).size.width - 64) /
+            2, // Fixed width: (screen width - padding) / 2
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected
@@ -868,9 +985,7 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
               : Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected
-                ? const Color(0xFF6366F1)
-                : Colors.grey.shade300,
+            color: isSelected ? const Color(0xFF6366F1) : Colors.grey.shade300,
             width: isSelected ? 2 : 1,
           ),
         ),
@@ -880,9 +995,8 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
           style: TextStyle(
             fontSize: 15,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-            color: isSelected
-                ? const Color(0xFF6366F1)
-                : const Color(0xFF1E293B),
+            color:
+                isSelected ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
           ),
         ),
       ),
@@ -998,7 +1112,8 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
               return InkWell(
                 onTap: () => _togglePaymentType(type),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                   decoration: BoxDecoration(
                     border: Border(
                       bottom: BorderSide(
@@ -1019,9 +1134,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                         ),
                       ),
                       Icon(
-                        isSelected
-                            ? Icons.check_circle
-                            : Icons.circle_outlined,
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
                         color: isSelected
                             ? const Color(0xFF6366F1)
                             : Colors.grey.shade400,

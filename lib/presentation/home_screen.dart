@@ -344,7 +344,7 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
   // State for transaction overview
   bool _isLoadingTransactions = true;
-  double _totalSpent = 0.0;
+  double _totalSpent = 0.0; // Total after discount (what user actually paid)
   List<Map<String, dynamic>> _categoryChartData = [];
   String? _transactionError;
   
@@ -414,7 +414,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
       // 2. Process Orders
       final Map<String, double> categorySpend = {};
-      double totalSpend = 0.0;
+      double subtotalSpend = 0.0; // For percentage calculations (before discount)
+      double totalSpendAfterDiscount = 0.0; // For display (after discount, what user actually paid)
 
       if (orders.isEmpty) {
         if (mounted) {
@@ -429,30 +430,64 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
     for (var order in orders) {
       final List<dynamic> items = order['items'] ?? [];
-
-      // Use summary total if available, otherwise sum items
       final summary = order['summary'];
-      if (summary != null && summary['total_price'] != null) {
-        totalSpend += (summary['total_price'] as num).toDouble();
+
+      // Helper to parse summary value (handles DynamoDB format)
+      double? parseSummaryValue(dynamic value) {
+        if (value == null) return null;
+        if (value is num) return value.toDouble();
+        if (value is Map && value.containsKey('N')) {
+          return double.tryParse(value['N'].toString());
+        }
+        if (value is String) return double.tryParse(value);
+        return null;
       }
 
+      // Get subtotal and total_price from summary
+      double? orderSubtotal;
+      double? orderTotalPrice;
+      if (summary != null) {
+        if (summary['subtotal'] != null) {
+          orderSubtotal = parseSummaryValue(summary['subtotal']);
+        }
+        if (summary['total_price'] != null) {
+          orderTotalPrice = parseSummaryValue(summary['total_price']);
+        }
+      }
+
+      // Calculate category spend from items
+      double orderItemsTotal = 0.0;
       for (var item in items) {
         final String category = item['category'] ?? 'Others';
         final double price = (item['unit_price'] ?? 0.0).toDouble();
         final int quantity = (item['quantity'] ?? 0).toInt();
         final double itemTotal = price * quantity;
+        orderItemsTotal += itemTotal;
 
         categorySpend.update(category, (value) => value + itemTotal,
             ifAbsent: () => itemTotal);
       }
+
+      // Use subtotal from summary if available (for percentage calculations)
+      // This ensures percentages add up to 100%
+      final orderSubtotalForCalc = orderSubtotal ?? orderItemsTotal;
+      subtotalSpend += orderSubtotalForCalc;
+      
+      // Track total price (after discount) for display
+      final orderTotalForDisplay = orderTotalPrice ?? orderSubtotalForCalc;
+      totalSpendAfterDiscount += orderTotalForDisplay;
     }
 
-      // Fallback: If totalSpend from summaries was 0, calculate from items
-      if (totalSpend == 0.0 && categorySpend.isNotEmpty) {
-        totalSpend = categorySpend.values.reduce((a, b) => a + b);
+      // Fallback: If subtotalSpend is 0, calculate from categorySpend
+      if (subtotalSpend == 0.0 && categorySpend.isNotEmpty) {
+        subtotalSpend = categorySpend.values.reduce((a, b) => a + b);
+        // If we don't have totalSpendAfterDiscount, use subtotalSpend
+        if (totalSpendAfterDiscount == 0.0) {
+          totalSpendAfterDiscount = subtotalSpend;
+        }
       }
 
-      if (totalSpend == 0.0) {
+      if (subtotalSpend == 0.0) {
         if (mounted) {
           setState(() {
             _isLoadingTransactions = false;
@@ -474,20 +509,20 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
       for (var entry in sortedCategories) {
         chartData.add({
           'category': entry.key,
-          'percentage': (entry.value / totalSpend) * 100,
+          'percentage': (entry.value / subtotalSpend) * 100,
           'color': _chartColors[colorIndex % _chartColors.length],
         });
         colorIndex++;
       }
 
-      // 4. Calculate AI Insights
-      _calculateAIInsights(orders, categorySpend, totalSpend);
+      // 4. Calculate AI Insights (use totalSpendAfterDiscount for insights)
+      _calculateAIInsights(orders, categorySpend, totalSpendAfterDiscount);
 
       // 5. Set State
       if (mounted) {
         setState(() {
           _isLoadingTransactions = false;
-          _totalSpent = totalSpend;
+          _totalSpent = totalSpendAfterDiscount; // Display total after discount
           _categoryChartData = chartData;
         });
       }

@@ -63,9 +63,11 @@ class ApiService {
       print("==========================================");
 
       if (!isLive) {
-       print("❌ SECURITY ALERT: Server returned 200 but Confidence is low ($confidence%).");
-       throw Exception('Liveness Verification Failed: Spoof Detected or Score Missing.');
-    }
+        print(
+            "❌ SECURITY ALERT: Server returned 200 but Confidence is low ($confidence%).");
+        throw Exception(
+            'Liveness Verification Failed: Spoof Detected or Score Missing.');
+      }
 
       return responseBody['user'];
     } else {
@@ -236,6 +238,32 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> getUserPoints(String shpUserId) async {
+    final uri = Uri.parse('$_baseUrl/rewards/balance').replace(
+      queryParameters: {'shp_user_id': shpUserId},
+    );
+
+    final response = await http.get(uri, headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    });
+
+    final responseBody = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      // Returns { "total_points": 100, "loyalty_tier": "bronze", ... }
+      return responseBody;
+    } else {
+      print("Failed to fetch points: ${response.body}");
+      // Return a default empty structure so the UI doesn't crash
+      return {
+        'total_points': 0,
+        'loyalty_tier': 'bronze',
+        'available_points': 0
+      };
+    }
+  }
+
   Future<Map<String, dynamic>> getCustomerCart({
     required String customerId,
     required String shopId,
@@ -346,6 +374,30 @@ class ApiService {
       return responseBody['orders'] as List<dynamic>;
     } else {
       throw Exception(responseBody['error'] ?? 'Failed to load order history.');
+    }
+  }
+
+  // GET /rewards/history
+  Future<List<dynamic>> getPointsHistory(String shpUserId) async {
+    try {
+      final uri = Uri.parse('$_baseUrl/rewards/history').replace(
+        queryParameters: {
+          'shp_user_id': shpUserId,
+          'limit': '100' // Fetch enough history to cover recent orders
+        },
+      );
+
+      final response =
+          await http.get(uri, headers: {'Accept': 'application/json'});
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        return body['history'] ?? [];
+      }
+      return [];
+    } catch (e) {
+      print("Error fetching points history: $e");
+      return [];
     }
   }
 

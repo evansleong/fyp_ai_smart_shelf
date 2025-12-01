@@ -1,16 +1,95 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../core/services/api_service.dart';
 
-class TransactionDetailsScreen extends StatelessWidget {
+class TransactionDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
+  final String? shpUserId; // Optional: needed to fetch full order details
 
   const TransactionDetailsScreen({
     super.key,
     required this.transaction,
+    this.shpUserId,
   });
 
   @override
+  State<TransactionDetailsScreen> createState() => _TransactionDetailsScreenState();
+}
+
+class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
+  final ApiService _apiService = ApiService();
+  Map<String, dynamic>? _fullOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    // Try to fetch full order details if shpUserId is provided
+    if (widget.shpUserId != null) {
+      _fetchFullOrderDetails();
+    }
+  }
+
+  Future<void> _fetchFullOrderDetails() async {
+    try {
+      // Fetch full orders (not history format)
+      final fullOrders = await _apiService.getCustomerOrders(widget.shpUserId!);
+      
+      // Match transaction with full order by date + amount
+      final transactionDate = widget.transaction['date']?.toString() ?? '';
+      final transactionAmount = widget.transaction['amount']?.toString() ?? '';
+      
+      if (transactionDate.isNotEmpty && transactionAmount.isNotEmpty) {
+        final normalizedAmount = double.tryParse(transactionAmount)?.toStringAsFixed(2) ?? transactionAmount;
+        
+        for (var order in fullOrders) {
+          final orderId = order['order_id']?.toString() ?? order['orderId']?.toString();
+          if (orderId == null) continue;
+          
+          final createdAt = order['created_at']?.toString() ?? '';
+          if (createdAt.isEmpty) continue;
+          
+          try {
+            final orderDateTime = DateTime.parse(createdAt);
+            final orderDate = orderDateTime.toIso8601String().split('T')[0];
+            
+            final summary = order['summary'];
+            double? orderTotalPrice;
+            if (summary != null && summary['total_price'] != null) {
+              final tp = summary['total_price'];
+              if (tp is num) {
+                orderTotalPrice = tp.toDouble();
+              } else if (tp is Map && tp.containsKey('N')) {
+                orderTotalPrice = double.tryParse(tp['N'].toString());
+              } else if (tp is String) {
+                orderTotalPrice = double.tryParse(tp);
+              }
+            }
+            
+            if (orderDate == transactionDate && 
+                orderTotalPrice != null && 
+                orderTotalPrice.toStringAsFixed(2) == normalizedAmount) {
+              // Found matching order!
+              if (mounted) {
+                setState(() {
+                  _fullOrder = order;
+                });
+              }
+              return;
+            }
+          } catch (e) {
+            // Skip if parsing fails
+            continue;
+          }
+        }
+      }
+    } catch (e) {
+      print("DEBUG: Error fetching full order: $e");
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final transaction = widget.transaction;
     final shopName = transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
     final amount = _parseAmount(transaction['amount']);
     final shopAddress = transaction['shop_address'] ?? 'Unknown Location';
@@ -19,7 +98,22 @@ class TransactionDetailsScreen extends StatelessWidget {
     final time = transaction['time'] ?? '';
     final paymentMethod = transaction['payment_method'] ?? 'Card';
     final items = _parseItems(transaction);
-    final totalAmount = _calculateTotal(items, amount);
+    
+    // Use full order if available, otherwise use transaction from history
+    final dataSource = _fullOrder ?? widget.transaction;
+    
+    // Parse summary for price breakdown
+    final summary = dataSource['summary'];
+    
+    final parsedSubtotal = _parseSummaryValue(summary, 'subtotal');
+    final parsedDiscount = _parseSummaryValue(summary, 'discount');
+    final parsedTotalPrice = _parseSummaryValue(summary, 'total_price');
+    
+    final subtotal = parsedSubtotal ?? _calculateTotal(items, amount);
+    final discount = parsedDiscount ?? 0.0;
+    final totalPrice = parsedTotalPrice ?? _calculateTotal(items, amount);
+    
+    final totalAmount = totalPrice; // Use total_price from summary as the final amount
 
     String formattedDate = '';
     String formattedTime = '';
@@ -55,7 +149,7 @@ class TransactionDetailsScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildHeaderCard(shopName, totalAmount, formattedDate, formattedTime),
+            _buildHeaderCard(shopName, totalAmount, formattedDate, formattedTime, subtotal, discount),
             const SizedBox(height: 16),
             if (items.isNotEmpty) _buildItemsSection(items),
             if (items.isEmpty) _buildSingleItemCard(transaction),
@@ -68,7 +162,7 @@ class TransactionDetailsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderCard(String shopName, double totalAmount, String date, String time) {
+  Widget _buildHeaderCard(String shopName, double totalAmount, String date, String time, double subtotal, double discount) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -136,30 +230,88 @@ class TransactionDetailsScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
+            // Price breakdown section
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
                 children: [
-                  const Text(
-                    'Total Amount',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
-                    ),
+                  // Subtotal (price before discount)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Subtotal',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      Text(
+                        'RM ${subtotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
                   ),
-                  Text(
-                    'RM ${totalAmount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFFDC2626),
-                    ),
+                  const SizedBox(height: 8),
+                  // Discount
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Discount',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF10B981),
+                        ),
+                      ),
+                      Text(
+                        discount > 0 
+                            ? '-RM ${discount.toStringAsFixed(2)}'
+                            : 'RM ${discount.toStringAsFixed(2)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: discount > 0 
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  // Total Amount (price after discount)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Total Amount',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      Text(
+                        'RM ${totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -511,6 +663,40 @@ class TransactionDetailsScreen extends StatelessWidget {
   double _calculateTotal(List<TransactionItem> items, double fallbackAmount) {
     if (items.isEmpty) return fallbackAmount;
     return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
+  }
+
+  /// Parses a value from the summary field, handling both simple format and DynamoDB format
+  double? _parseSummaryValue(Map<String, dynamic>? summary, String key) {
+    if (summary == null) return null;
+    
+    final value = summary[key];
+    if (value == null) return null;
+    
+    // Handle DynamoDB format: { "N" : "3.64" } or { "N" : "0.3" }
+    if (value is Map<String, dynamic>) {
+      if (value.containsKey('N')) {
+        final numStr = value['N']?.toString() ?? '';
+        final parsed = double.tryParse(numStr);
+        if (parsed != null) return parsed;
+      }
+      // Also handle string format: { "S" : "3.64" }
+      if (value.containsKey('S')) {
+        final numStr = value['S']?.toString() ?? '';
+        final parsed = double.tryParse(numStr);
+        if (parsed != null) return parsed;
+      }
+    }
+    
+    // Handle simple format: 3.64 or "3.64"
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      if (parsed != null) return parsed;
+    }
+    
+    return null;
   }
 }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/services/api_service.dart';
 
 // --- MODIFIED: Accept the user map ---
 class ProfileScreen extends StatefulWidget {
@@ -17,6 +18,14 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
+
+  bool _isLoadingPoints = true;
+  Map<String, dynamic> _rewardsData = {
+    'total_points': 0,
+    'available_points': 0,
+    'loyalty_tier': 'bronze',
+    'lifetime_spend': 0.0,
+  };
 
   // --- MODIFIED: Declare controllers as 'late' ---
   // We will initialize them in initState()
@@ -54,6 +63,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _addressLine2Controller = TextEditingController(text: address2);
     _postcodeController = TextEditingController(text: user['postcode'] ?? '');
     _stateController = TextEditingController(text: user['state'] ?? '');
+
+    _fetchRewardsData();
+  }
+
+  Future<void> _fetchRewardsData() async {
+    try {
+      final api = ApiService(); // Import your ApiService
+      // Assuming user['shp_user_id'] exists. If your map key is different (e.g. 'id'), change it here.
+      final shpUserId = widget.user['shp_user_id'] ?? widget.user['id'] ?? '';
+
+      if (shpUserId.isNotEmpty) {
+        final data = await api.getUserPoints(shpUserId);
+        if (mounted) {
+          setState(() {
+            _rewardsData = data;
+            _isLoadingPoints = false;
+          });
+        }
+      }
+    } catch (e) {
+      print("Error fetching points: $e");
+      if (mounted) setState(() => _isLoadingPoints = false);
+    }
   }
 
   @override
@@ -80,12 +112,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (_formKey.currentState!.validate()) {
           // If valid, stop editing and show success
           _isEditing = false;
-          
+
           // TODO: In the future, you will call your API here
           // 1. Show a loading indicator
           // 2. final success = await _apiService.updateProfile({ ... });
           // 3. Only set _isEditing = false and show snackbar if success
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Profile updated successfully!'),
@@ -130,12 +162,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icon(
               _isEditing ? Icons.check : Icons.edit_outlined,
               size: 20,
-              color: _isEditing ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
+              color: _isEditing
+                  ? const Color(0xFF6366F1)
+                  : const Color(0xFF1E293B),
             ),
             label: Text(
               _isEditing ? 'Save' : 'Edit',
               style: TextStyle(
-                color: _isEditing ? const Color(0xFF6366F1) : const Color(0xFF1E293B),
+                color: _isEditing
+                    ? const Color(0xFF6366F1)
+                    : const Color(0xFF1E293B),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -147,6 +183,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
+              const SizedBox(height: 16),
+              if (_isLoadingPoints)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                _buildRewardsCard(),
               const SizedBox(height: 16),
               _buildPersonalDetailsCard(),
               const SizedBox(height: 16),
@@ -244,7 +288,146 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoRow({required IconData icon, required String label, required String value}) {
+  Widget _buildRewardsCard() {
+    // Determine colors based on tier
+    final tier =
+        (_rewardsData['loyalty_tier'] ?? 'bronze').toString().toLowerCase();
+
+    Color startColor;
+    Color endColor;
+    Color iconColor;
+    String iconAsset;
+
+    switch (tier) {
+      case 'platinum':
+        startColor = const Color(0xFFE5E4E2);
+        endColor = const Color(0xFF607D8B);
+        iconColor = Colors.black45;
+        break;
+      case 'gold':
+        startColor = const Color(0xFFFFD700);
+        endColor = const Color(0xFFFFA000);
+        iconColor = Colors.white;
+        break;
+      case 'silver':
+        startColor = const Color(0xFFC0C0C0);
+        endColor = const Color(0xFF9E9E9E);
+        iconColor = Colors.white;
+        break;
+      default: // bronze
+        startColor = const Color(0xFFCD7F32);
+        endColor = const Color(0xFFA0522D);
+        iconColor = Colors.white;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          colors: [startColor, endColor],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: endColor.withOpacity(0.4),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Background Pattern (Optional)
+          Positioned(
+            right: -20,
+            top: -20,
+            child: Icon(
+              Icons.star,
+              size: 150,
+              color: Colors.white.withOpacity(0.1),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tier.toUpperCase(),
+                          style: TextStyle(
+                            color: iconColor.withOpacity(0.9),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${_rewardsData['available_points']} PTS',
+                          style: TextStyle(
+                            color: iconColor,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 32,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.workspace_premium,
+                          color: iconColor, size: 30),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Simple Progress Bar or Info
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shopping_bag_outlined,
+                          color: iconColor, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Lifetime Spend: RM ${(_rewardsData['lifetime_spend'] ?? 0).toString()}',
+                        style: TextStyle(
+                          color: iconColor,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(
+      {required IconData icon, required String label, required String value}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
@@ -282,7 +465,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
-                    color: value.isEmpty ? Colors.grey.shade400 : const Color(0xFF1E293B),
+                    color: value.isEmpty
+                        ? Colors.grey.shade400
+                        : const Color(0xFF1E293B),
                   ),
                 ),
               ],
@@ -314,7 +499,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       filled: true,
       fillColor: _isEditing ? Colors.white : Colors.grey.shade50,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      prefixIconColor: _isEditing ? const Color(0xFF6366F1) : Colors.grey.shade600,
+      prefixIconColor:
+          _isEditing ? const Color(0xFF6366F1) : Colors.grey.shade600,
     );
 
     return Container(
@@ -367,7 +553,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: inputDecoration.copyWith(
                 labelText: 'Phone Number',
                 labelStyle: TextStyle(
-                  color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                  color:
+                      _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
                 ),
                 prefixIcon: const Icon(Icons.phone_outlined),
                 hintText: 'Enter phone number',
@@ -383,7 +570,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: inputDecoration.copyWith(
                 labelText: 'Address Line 1',
                 labelStyle: TextStyle(
-                  color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                  color:
+                      _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
                 ),
                 prefixIcon: const Icon(Icons.home_work_outlined),
                 hintText: 'Enter address line 1',
@@ -398,7 +586,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               decoration: inputDecoration.copyWith(
                 labelText: 'Address Line 2 (Optional)',
                 labelStyle: TextStyle(
-                  color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                  color:
+                      _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
                 ),
                 prefixIcon: const Icon(Icons.add_road_outlined),
                 hintText: 'Enter address line 2 (optional)',
@@ -414,7 +603,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: inputDecoration.copyWith(
                       labelText: 'Postcode',
                       labelStyle: TextStyle(
-                        color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                        color: _isEditing
+                            ? Colors.grey.shade700
+                            : Colors.grey.shade500,
                       ),
                       prefixIcon: const Icon(Icons.markunread_mailbox_outlined),
                       hintText: 'Postcode',
@@ -432,7 +623,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: inputDecoration.copyWith(
                       labelText: 'State',
                       labelStyle: TextStyle(
-                        color: _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                        color: _isEditing
+                            ? Colors.grey.shade700
+                            : Colors.grey.shade500,
                       ),
                       prefixIcon: const Icon(Icons.location_city_outlined),
                       hintText: 'State',
