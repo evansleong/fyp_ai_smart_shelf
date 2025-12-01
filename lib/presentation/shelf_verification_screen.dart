@@ -164,6 +164,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'ShoppingScreen'),
           builder: (_) => ShoppingScreen(
             shelfId: widget.shelfId,
             userName: (shopperName ?? user['name']).toString(),
@@ -386,6 +387,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'ShoppingScreen'),
           builder: (_) => ShoppingScreen(
             shelfId: widget.shelfId,
             userName: debugUser['name'],

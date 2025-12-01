@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../core/services/checkout_service.dart';
 import 'success_screen.dart';
 import '../core/services/api_service.dart';
+import '../core/services/session_service.dart';
+import '../core/model/cart_model.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final String shopId;
@@ -13,6 +15,7 @@ class CheckoutScreen extends StatefulWidget {
   final String? prefillPhone;
   final String? prefillEmail;
   final double cartTotal;
+  final List<CartItem> cartItems;
 
   const CheckoutScreen({
     super.key,
@@ -25,6 +28,7 @@ class CheckoutScreen extends StatefulWidget {
     this.prefillPhone,
     this.prefillEmail,
     required this.cartTotal,
+    required this.cartItems,
   });
 
   @override
@@ -45,7 +49,45 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeFields();
     _fetchPoints();
+  }
+
+  void _initializeFields() {
+    final session = SessionService();
+
+    // 1. Try to load from session first
+    if (session.name != null && session.name!.isNotEmpty) {
+      _nameCtrl.text = session.name!;
+    } else if (widget.prefillName != null) {
+      _nameCtrl.text = widget.prefillName!;
+      session.updateSession(name: widget.prefillName);
+    }
+
+    if (session.phone != null && session.phone!.isNotEmpty) {
+      _phoneCtrl.text = session.phone!;
+    } else if (widget.prefillPhone != null) {
+      _phoneCtrl.text = widget.prefillPhone!;
+      session.updateSession(phone: widget.prefillPhone);
+    }
+
+    if (session.email != null && session.email!.isNotEmpty) {
+      _emailCtrl.text = session.email!;
+    } else if (widget.prefillEmail != null) {
+      _emailCtrl.text = widget.prefillEmail!;
+      session.updateSession(email: widget.prefillEmail);
+    }
+
+    // 2. Listen for changes to update session
+    _nameCtrl.addListener(() {
+      session.updateSession(name: _nameCtrl.text);
+    });
+    _phoneCtrl.addListener(() {
+      session.updateSession(phone: _phoneCtrl.text);
+    });
+    _emailCtrl.addListener(() {
+      session.updateSession(email: _emailCtrl.text);
+    });
   }
 
   Future<void> _fetchPoints() async {
@@ -122,7 +164,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             .resumeSession(shopId: widget.shopId, shelfId: widget.shelfId);
       } catch (_) {}
       if (!mounted) return;
-      Navigator.pushReplacement(
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
           builder: (_) => SuccessScreen(
@@ -131,8 +173,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             shelfName: widget.shelfName,
             shopId: widget.shopId,
             customerId: widget.customerId,
+            purchasedItems: widget.cartItems,
           ),
         ),
+        (route) => route.settings.name == 'ShoppingScreen',
       );
     } catch (e) {
       if (!mounted) return;
@@ -147,26 +191,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if ((_nameCtrl.text.isEmpty) && (widget.prefillName?.isNotEmpty ?? false)) {
-      _nameCtrl.text = widget.prefillName!;
-    }
-    if ((_phoneCtrl.text.isEmpty) &&
-        (widget.prefillPhone?.isNotEmpty ?? false)) {
-      _phoneCtrl.text = widget.prefillPhone!;
-    }
-    if ((_emailCtrl.text.isEmpty) &&
-        (widget.prefillEmail?.isNotEmpty ?? false)) {
-      _emailCtrl.text = widget.prefillEmail!;
-    }
-
     // --- Calculate Display Total ---
     double totalToPay = widget.cartTotal - _discountAmount;
     if (totalToPay < 0) totalToPay = 0;
 
-    int pointsNeeded = (widget.cartTotal / 0.10).ceil();
-    int potentialPoints = pointsNeeded < _availablePoints ? pointsNeeded : _availablePoints;
-    int displayPoints = _usePoints ? _pointsToRedeem : potentialPoints;
-    double displaySavings = displayPoints * 0.10;
+    // Removed unused potentialPoints variable
 
     return WillPopScope(
       onWillPop: () async {
@@ -177,71 +206,145 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         return true;
       },
       child: Scaffold(
-        appBar: AppBar(title: const Text('Checkout')),
+        backgroundColor: Colors.grey.shade50,
+        appBar: AppBar(
+          title: const Text('Checkout', style: TextStyle(color: Colors.black)),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.black),
+        ),
         body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
             child: Form(
               key: _formKey,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.grey.shade300),
+                  // Receipt Card
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.storefront, size: 16),
-                            const SizedBox(width: 6),
-                            Text(widget.shelfName),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: const [
-                          Icon(Icons.lock, size: 16, color: Colors.green),
-                          SizedBox(width: 6),
-                          Text('Secure payment'),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  if (_availablePoints > 0)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        border: Border.all(color: Colors.orange.shade200),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: SwitchListTile(
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: 12),
-                        activeColor: Colors.deepOrange,
-                        title: Row(
-                          children: [
-                            const Icon(Icons.stars, color: Colors.orange),
-                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.storefront,
+                                  size: 20, color: Colors.black87),
+                            ),
+                            const SizedBox(width: 10),
                             Text(
-                              "Redeem $_pointsToRedeem Points",
+                              widget.shelfName,
                               style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 14),
+                                  fontWeight: FontWeight.bold, fontSize: 16),
                             ),
                           ],
                         ),
-                        subtitle: Text(
-                          "You have RM ${(_availablePoints * 0.10).toStringAsFixed(2)} of points to be redeemed",
-                          style: TextStyle(
-                              color: Colors.orange.shade800, fontSize: 12),
+                        const SizedBox(height: 20),
+                        const Divider(height: 1),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            const Text('Subtotal',
+                                style: TextStyle(
+                                    color: Colors.grey, fontSize: 16)),
+                            const Spacer(),
+                            Text('RM ${widget.cartTotal.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontSize: 16, fontWeight: FontWeight.w500)),
+                          ],
+                        ),
+                        if (_usePoints) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              const Text('Points Discount',
+                                  style: TextStyle(
+                                      color: Colors.green, fontSize: 16)),
+                              const Spacer(),
+                              Text('- RM ${_discountAmount.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                      color: Colors.green,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16)),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        const Divider(height: 1),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            const Text('Total to Pay',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 18)),
+                            const Spacer(),
+                            Text('RM ${totalToPay.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24,
+                                    color: Colors.black)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  if (_availablePoints > 0)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 24),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.orange.shade100),
+                      ),
+                      child: SwitchListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        activeColor: Colors.deepPurple,
+                        title: Row(
+                          children: [
+                            const Icon(Icons.stars_rounded,
+                                color: Colors.orange, size: 28),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Redeem $_pointsToRedeem Points",
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15),
+                                ),
+                                Text(
+                                  "Available: RM ${(_availablePoints * 0.10).toStringAsFixed(2)}",
+                                  style: TextStyle(
+                                      color: Colors.orange.shade800,
+                                      fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                         value: _usePoints,
                         onChanged: (val) {
@@ -252,83 +355,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         },
                       ),
                     ),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const Text('Subtotal',
-                                style: TextStyle(color: Colors.grey)),
-                            const Spacer(),
-                            Text('RM ${widget.cartTotal.toStringAsFixed(2)}'),
-                          ],
-                        ),
-                        if (_usePoints) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              const Text('Points Discount',
-                                  style: TextStyle(color: Colors.green)),
-                              const Spacer(),
-                              Text('- RM ${_discountAmount.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                      color: Colors.green,
-                                      fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ],
-                        const Divider(height: 24),
-                        Row(
-                          children: [
-                            const Text('Total to Pay',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16)),
-                            const Spacer(),
-                            Text('RM ${totalToPay.toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 20,
-                                    color: Colors.blue)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
+
+                  const Text("Contact Details",
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                   const SizedBox(height: 16),
-                  TextFormField(
+
+                  _buildTextField(
                     controller: _nameCtrl,
-                    decoration: const InputDecoration(labelText: 'Full name'),
+                    label: 'Full Name',
+                    icon: Icons.person_outline,
                     readOnly: widget.prefillName != null &&
                         widget.prefillName!.isNotEmpty,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
+                  const SizedBox(height: 16),
+                  _buildTextField(
                     controller: _phoneCtrl,
-                    decoration: const InputDecoration(labelText: 'Phone'),
+                    label: 'Phone Number',
+                    icon: Icons.phone_outlined,
                     readOnly: widget.prefillPhone != null &&
                         widget.prefillPhone!.isNotEmpty,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
+                  const SizedBox(height: 16),
+                  _buildTextField(
                     controller: _emailCtrl,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                    label: 'Email Address',
+                    icon: Icons.email_outlined,
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Required';
                       if (!v.contains('@')) return 'Invalid email';
@@ -337,33 +389,104 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     readOnly: widget.prefillEmail != null &&
                         widget.prefillEmail!.isNotEmpty,
                   ),
-                  const SizedBox(height: 8),
+
                   if ((widget.prefillEmail?.isNotEmpty ?? false))
-                    Align(
-                      alignment: Alignment.centerLeft,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 4),
                       child: Text(
                         'Receipt will be sent to ${widget.prefillEmail}',
-                        style: const TextStyle(color: Colors.grey),
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     ),
-                  const Spacer(),
+
+                  const SizedBox(height: 40),
+
                   SizedBox(
                     width: double.infinity,
+                    height: 56,
                     child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white, // Fix text color
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                      ),
                       onPressed: _loading ? null : _pay,
                       child: _loading
                           ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : Text(
-                              'Pay RM ${widget.cartTotal.toStringAsFixed(2)}'),
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.lock_outline,
+                                    size: 18, color: Colors.white),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Pay RM ${totalToPay.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Center(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.verified_user_outlined,
+                            size: 14, color: Colors.grey),
+                        SizedBox(width: 4),
+                        Text('Secure Payment by Stripe',
+                            style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool readOnly = false,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      readOnly: readOnly,
+      validator: validator ??
+          (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, color: Colors.grey),
+        filled: true,
+        fillColor: readOnly ? Colors.grey.shade100 : Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
         ),
       ),
     );

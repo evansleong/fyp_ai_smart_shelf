@@ -49,7 +49,8 @@ class _CartScreenState extends State<CartScreen> {
       );
       final productsResp = await _api.fetchShelfProducts(widget.shelfId);
       if (!mounted) return;
-      if (cartBody['success'] == true && cartBody['cart'] is Map<String, dynamic>) {
+      if (cartBody['success'] == true &&
+          cartBody['cart'] is Map<String, dynamic>) {
         setState(() {
           _cart = Cart.fromJson(cartBody['cart'] as Map<String, dynamic>);
           final List<dynamic> list = productsResp['products'] ?? [];
@@ -83,7 +84,9 @@ class _CartScreenState extends State<CartScreen> {
 
   Widget _buildBody() {
     if (_loading) return const Center(child: CircularProgressIndicator());
-    if (_error != null) return Center(child: Text(_error!, style: const TextStyle(color: Colors.red)));
+    if (_error != null)
+      return Center(
+          child: Text(_error!, style: const TextStyle(color: Colors.red)));
     if (_cart == null || _cart!.items.isEmpty) {
       return Center(
         child: Padding(
@@ -91,9 +94,11 @@ class _CartScreenState extends State<CartScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.shopping_cart_outlined, size: 64, color: Colors.grey),
+              const Icon(Icons.shopping_cart_outlined,
+                  size: 64, color: Colors.grey),
               const SizedBox(height: 12),
-              const Text('Your cart is empty', style: TextStyle(fontSize: 18, color: Colors.grey)),
+              const Text('Your cart is empty',
+                  style: TextStyle(fontSize: 18, color: Colors.grey)),
               const SizedBox(height: 12),
               ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
@@ -106,7 +111,7 @@ class _CartScreenState extends State<CartScreen> {
       );
     }
 
-    final Map<String, Product> byId = { for (final p in _products) p.id: p };
+    final Map<String, Product> byId = {for (final p in _products) p.id: p};
     final computedTotal = _cart!.items.fold<double>(0.0, (sum, it) {
       final p = byId[it.productId];
       final price = p?.price ?? it.price;
@@ -137,13 +142,18 @@ class _CartScreenState extends State<CartScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(widget.shelfName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(widget.shelfName,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text('${_cart!.items.length} item(s)', style: const TextStyle(color: Colors.grey)),
+                      Text('${_cart!.items.length} item(s)',
+                          style: const TextStyle(color: Colors.grey)),
                     ],
                   ),
                 ),
-                Text('RM ${displayTotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                Text('RM ${displayTotal.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18)),
               ],
             ),
           ),
@@ -171,7 +181,8 @@ class _CartScreenState extends State<CartScreen> {
                             width: 56,
                             height: 56,
                             color: Colors.grey.shade200,
-                            child: const Icon(Icons.broken_image, size: 32, color: Colors.grey),
+                            child: const Icon(Icons.broken_image,
+                                size: 32, color: Colors.grey),
                           ),
                         ),
                       )
@@ -179,11 +190,14 @@ class _CartScreenState extends State<CartScreen> {
                         width: 56,
                         height: 56,
                         color: Colors.grey.shade200,
-                        child: const Icon(Icons.fastfood, size: 32, color: Colors.grey),
+                        child: const Icon(Icons.fastfood,
+                            size: 32, color: Colors.grey),
                       ),
                 title: Text(name),
-                subtitle: Text('x${it.quantity} • RM ${price.toStringAsFixed(2)} each'),
-                trailing: Text('RM ${(price * it.quantity).toStringAsFixed(2)}'),
+                subtitle: Text(
+                    'x${it.quantity} • RM ${price.toStringAsFixed(2)} each'),
+                trailing:
+                    Text('RM ${(price * it.quantity).toStringAsFixed(2)}'),
               );
             },
           ),
@@ -193,9 +207,10 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildBottomBar() {
-    if (_loading || _cart == null || _cart!.items.isEmpty) return const SizedBox.shrink();
+    if (_loading || _cart == null || _cart!.items.isEmpty)
+      return const SizedBox.shrink();
     // Compute total with the same price fallback logic used in the list items
-    final Map<String, Product> byId = { for (final p in _products) p.id: p };
+    final Map<String, Product> byId = {for (final p in _products) p.id: p};
     final computed = _cart!.items.fold<double>(0.0, (sum, it) {
       final p = byId[it.productId];
       final price = p?.price ?? it.price;
@@ -203,8 +218,7 @@ class _CartScreenState extends State<CartScreen> {
     });
     final total = (_cart!.total > 0) ? _cart!.total : computed;
     return SafeArea(
-      child: Container
-        (
+      child: Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -230,7 +244,8 @@ class _CartScreenState extends State<CartScreen> {
                   const Text('Total', style: TextStyle(color: Colors.grey)),
                   Text(
                     'RM ${total.toStringAsFixed(2)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 18),
                   ),
                 ],
               ),
@@ -238,7 +253,8 @@ class _CartScreenState extends State<CartScreen> {
             ElevatedButton(
               onPressed: () async {
                 try {
-                  await _api.pauseSession(shopId: widget.shopId, shelfId: widget.shelfId);
+                  await _api.pauseSession(
+                      shopId: widget.shopId, shelfId: widget.shelfId);
                 } catch (_) {}
                 if (!mounted) return;
                 Navigator.push(
@@ -254,6 +270,15 @@ class _CartScreenState extends State<CartScreen> {
                       prefillPhone: widget.userPhone,
                       prefillEmail: widget.userEmail,
                       cartTotal: total,
+                      cartItems: _cart!.items.map((item) {
+                        final product = byId[item.productId];
+                        return CartItem(
+                          productId: item.productId,
+                          name: product?.name ?? item.name,
+                          quantity: item.quantity,
+                          price: product?.price ?? item.price,
+                        );
+                      }).toList(),
                     ),
                   ),
                 );
