@@ -76,6 +76,28 @@ class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
     }
 
     _controller = controller;
+
+    _clearCacheAndLoad(controller);
+  }
+
+  Future<void> _clearCacheAndLoad(WebViewController controller) async {
+    debugPrint("🧹 Clearing WebView Cache...");
+    
+    // 1. Clear disk cache (images, css, etc.)
+    await controller.clearCache();
+    
+    // 2. Clear local storage (React state, temporary data)
+    await controller.clearLocalStorage();
+
+    // 3. OPTIONAL: If your app uses Cookies, clear them too
+    // await WebViewCookieManager().clearCookies(); 
+
+    debugPrint("✅ Cache Cleared. Loading URL...");
+    
+    // 4. Now load the page
+    if (mounted) {
+      controller.loadRequest(Uri.parse('$_bridgeUrl?session_id=${widget.sessionId}'));
+    }
   }
 
   @override

@@ -49,10 +49,12 @@ class WebSocketService {
 
     _channel!.stream.listen(
       (data) {
+        print("🔥 WEBSOCKET RECEIVED: $data");
         try {
           final dynamic message = (data is String) ? jsonDecode(data) : data;
           _notify('message', message);
         } catch (e) {
+          print("Error decoding message: $e");
           _notify('error', {'message': 'Invalid WS message: $e'});
         }
       },
