@@ -505,9 +505,8 @@ class ApiService {
   }
 
   // POST /camera/mobile-stop/{shop_id}/{shelf_id}
-  /// Fire-and-forget variant with short timeout and quick retries.
-  /// Does not throw; best-effort only.
-  Future<void> mobileStop({
+  /// Returns the response map which may include theft detection info.
+  Future<Map<String, dynamic>?> mobileStop({
     required String shopId,
     required String shelfId,
   }) async {
@@ -519,11 +518,18 @@ class ApiService {
         final res = await http.post(uri, headers: {
           'Accept': 'application/json',
         }).timeout(const Duration(seconds: 6));
-        if (res.statusCode >= 200 && res.statusCode < 300) return;
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            return jsonDecode(res.body) as Map<String, dynamic>;
+          } catch (_) {
+            return null; // Response not JSON
+          }
+        }
       } catch (_) {
         await Future.delayed(const Duration(milliseconds: 300));
       }
     }
+    return null; // Failed after retries
   }
 
   // POST /camera/session-pause/{shop_id}/{shelf_id}
@@ -559,10 +565,10 @@ class ApiService {
   }
 
   // Convenience alias when ending session from app
-  Future<void> endSession({
+  Future<Map<String, dynamic>?> endSession({
     required String shopId,
     required String shelfId,
   }) async {
-    await mobileStop(shopId: shopId, shelfId: shelfId);
+    return await mobileStop(shopId: shopId, shelfId: shelfId);
   }
 }

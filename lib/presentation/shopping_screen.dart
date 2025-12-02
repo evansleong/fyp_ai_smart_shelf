@@ -157,6 +157,42 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
     });
   }
 
+  void _showTheftSnackBar(int itemCount, String orderId) {
+    if (!mounted) return;
+
+    final message =
+        '$itemCount item${itemCount > 1 ? 's' : ''} not returned. Marked as missing (Order: $orderId).';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Items Not Returned',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(message),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 5),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
@@ -183,8 +219,20 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         );
         if (shouldExit == true) {
           try {
-            await _apiService.endSession(
+            // Capture the response from endSession
+            final response = await _apiService.endSession(
                 shopId: widget.shopId, shelfId: widget.shelfId);
+
+            // Check if theft was detected
+            if (response != null && response['theft_detected'] == true) {
+              final theftDetails = response['theft_details'];
+              if (theftDetails != null) {
+                _showTheftSnackBar(
+                  theftDetails['total_items'] ?? 0,
+                  theftDetails['order_id'] ?? 'UNKNOWN',
+                );
+              }
+            }
           } catch (_) {}
           try {
             webSocketService.send({
