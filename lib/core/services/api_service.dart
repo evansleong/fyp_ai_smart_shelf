@@ -571,4 +571,30 @@ class ApiService {
   }) async {
     return await mobileStop(shopId: shopId, shelfId: shelfId);
   }
+
+  // GET /camera/lookup/{shop_id}/{shelf_id}
+  /// Check if session is still active
+  Future<Map<String, dynamic>?> checkSessionStatus({
+    required String shopId,
+    required String shelfId,
+  }) async {
+    try {
+      final uri = Uri.parse('$_awsProdBase/camera/lookup/$shopId/$shelfId');
+      final res = await http.get(
+        uri,
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 5));
+      
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body);
+        return body as Map<String, dynamic>;
+      } else {
+        // Session not found or inactive
+        return null;
+      }
+    } catch (e) {
+      // Network error or timeout - assume session is gone
+      return null;
+    }
+  }
 }

@@ -147,32 +147,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(
-            color: Color(0xFF1E293B),
-            fontWeight: FontWeight.w600,
-            fontSize: 18,
-          ),
+        surfaceTintColor: Colors.transparent,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.person,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'My Profile',
+              style: TextStyle(
+                color: Color(0xFF1E293B),
+                fontWeight: FontWeight.w700,
+                fontSize: 20,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
         ),
         iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
         actions: [
-          TextButton.icon(
-            onPressed: _toggleEdit,
-            icon: Icon(
-              _isEditing ? Icons.check : Icons.edit_outlined,
-              size: 20,
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
               color: _isEditing
                   ? const Color(0xFF6366F1)
-                  : const Color(0xFF1E293B),
+                  : const Color(0xFF6366F1).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-            label: Text(
-              _isEditing ? 'Save' : 'Edit',
-              style: TextStyle(
-                color: _isEditing
-                    ? const Color(0xFF6366F1)
-                    : const Color(0xFF1E293B),
-                fontWeight: FontWeight.w600,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _toggleEdit,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isEditing ? Icons.check_rounded : Icons.edit_rounded,
+                        size: 18,
+                        color: _isEditing ? Colors.white : const Color(0xFF6366F1),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isEditing ? 'Save' : 'Edit',
+                        style: TextStyle(
+                          color: _isEditing ? Colors.white : const Color(0xFF6366F1),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -208,76 +248,92 @@ class _ProfileScreenState extends State<ProfileScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6366F1).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.person_outline,
-                    color: Color(0xFF6366F1),
-                    size: 20,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Personal Details',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Personal Details',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF1E293B),
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'This information cannot be changed',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(
-                'This information cannot be changed',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            _buildInfoRow(
-              icon: Icons.person_outline,
+            const SizedBox(height: 24),
+            _buildModernInfoRow(
+              icon: Icons.person_outline_rounded,
               label: 'Full Name',
               value: _nameController.text,
             ),
-            const Divider(height: 1, indent: 48),
-            _buildInfoRow(
+            const SizedBox(height: 16),
+            _buildModernInfoRow(
               icon: Icons.badge_outlined,
               label: 'IC Number (NRIC)',
               value: _icController.text,
             ),
-            const Divider(height: 1, indent: 48),
-            _buildInfoRow(
+            const SizedBox(height: 16),
+            _buildModernInfoRow(
               icon: Icons.wc_outlined,
               label: 'Gender',
               value: _genderController.text,
             ),
-            const Divider(height: 1, indent: 48),
-            _buildInfoRow(
+            const SizedBox(height: 16),
+            _buildModernInfoRow(
               icon: Icons.mosque_outlined,
               label: 'Religion',
               value: _religionController.text,
@@ -296,7 +352,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color startColor;
     Color endColor;
     Color iconColor;
-    String iconAsset;
 
     switch (tier) {
       case 'platinum':
@@ -324,7 +379,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16),
       width: double.infinity,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         gradient: LinearGradient(
           colors: [startColor, endColor],
           begin: Alignment.topLeft,
@@ -332,87 +387,151 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: endColor.withOpacity(0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            color: endColor.withOpacity(0.5),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: Stack(
         children: [
-          // Background Pattern (Optional)
+          // Background Pattern
           Positioned(
-            right: -20,
-            top: -20,
+            right: -30,
+            top: -30,
             child: Icon(
-              Icons.star,
-              size: 150,
+              Icons.star_rounded,
+              size: 180,
+              color: Colors.white.withOpacity(0.15),
+            ),
+          ),
+          Positioned(
+            left: -20,
+            bottom: -20,
+            child: Icon(
+              Icons.workspace_premium_rounded,
+              size: 120,
               color: Colors.white.withOpacity(0.1),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(20.0),
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          tier.toUpperCase(),
-                          style: TextStyle(
-                            color: iconColor.withOpacity(0.9),
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.2,
-                            fontSize: 14,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.25),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              tier.toUpperCase(),
+                              style: TextStyle(
+                                color: iconColor,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.5,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_rewardsData['available_points']} PTS',
-                          style: TextStyle(
-                            color: iconColor,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 32,
+                          const SizedBox(height: 12),
+                          Text(
+                            '${(_rewardsData['available_points'] ?? 0).toInt()}',
+                            style: TextStyle(
+                              color: iconColor,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 48,
+                              letterSpacing: -2,
+                              height: 1,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            'POINTS',
+                            style: TextStyle(
+                              color: iconColor.withOpacity(0.9),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.25),
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
                       ),
-                      child: Icon(Icons.workspace_premium,
-                          color: iconColor, size: 30),
+                      child: Icon(
+                        Icons.workspace_premium_rounded,
+                        color: iconColor,
+                        size: 36,
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                // Simple Progress Bar or Info
+                const SizedBox(height: 24),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1,
+                    ),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.shopping_bag_outlined,
-                          color: iconColor, size: 16),
-                      const SizedBox(width: 8),
+                      Icon(
+                        Icons.shopping_bag_outlined,
+                        color: iconColor,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Lifetime Spend',
+                          style: TextStyle(
+                            color: iconColor.withOpacity(0.9),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
                       Text(
-                        'Lifetime Spend: RM ${(_rewardsData['lifetime_spend'] ?? 0).toString()}',
+                        'RM ${(_rewardsData['lifetime_spend'] ?? 0).toStringAsFixed(2)}',
                         style: TextStyle(
                           color: iconColor,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ],
@@ -426,24 +545,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildInfoRow(
-      {required IconData icon, required String label, required String value}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+  Widget _buildModernInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          width: 1,
+        ),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(10),
+              gradient: LinearGradient(
+                colors: [
+                  const Color(0xFF6366F1).withOpacity(0.1),
+                  const Color(0xFF8B5CF6).withOpacity(0.1),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
               icon,
-              color: Colors.grey.shade600,
-              size: 20,
+              color: const Color(0xFF6366F1),
+              size: 22,
             ),
           ),
           const SizedBox(width: 16),
@@ -454,20 +588,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: Colors.grey.shade600,
+                    letterSpacing: 0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   value.isEmpty ? 'Not provided' : value,
                   style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                     color: value.isEmpty
                         ? Colors.grey.shade400
                         : const Color(0xFF1E293B),
+                    letterSpacing: -0.3,
                   ),
                 ),
               ],
@@ -479,158 +615,112 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildContactDetailsCard() {
-    final inputDecoration = InputDecoration(
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
-      ),
-      disabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      filled: true,
-      fillColor: _isEditing ? Colors.white : Colors.grey.shade50,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      prefixIconColor:
-          _isEditing ? const Color(0xFF6366F1) : Colors.grey.shade600,
-    );
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+            spreadRadius: 0,
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF6366F1).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.phone_outlined,
-                    color: Color(0xFF6366F1),
-                    size: 20,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
                 const SizedBox(width: 12),
                 const Text(
                   'Contact Information',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF1E293B),
+                    letterSpacing: -0.5,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 20),
-            TextFormField(
+            const SizedBox(height: 24),
+            // Phone Number
+            _buildModernTextField(
               controller: _phoneController,
-              enabled: _isEditing,
-              decoration: inputDecoration.copyWith(
-                labelText: 'Phone Number',
-                labelStyle: TextStyle(
-                  color:
-                      _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
-                ),
-                prefixIcon: const Icon(Icons.phone_outlined),
-                hintText: 'Enter phone number',
-              ),
+              label: 'Phone Number',
+              icon: Icons.phone_outlined,
               keyboardType: TextInputType.phone,
               validator: (value) =>
                   value!.isEmpty ? 'Please enter a phone number' : null,
+              isEditing: _isEditing,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
+            const SizedBox(height: 20),
+            // Address Line 1
+            _buildModernTextField(
               controller: _addressLine1Controller,
-              enabled: _isEditing,
-              decoration: inputDecoration.copyWith(
-                labelText: 'Address Line 1',
-                labelStyle: TextStyle(
-                  color:
-                      _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
-                ),
-                prefixIcon: const Icon(Icons.home_work_outlined),
-                hintText: 'Enter address line 1',
-              ),
+              label: 'Address Line 1',
+              icon: Icons.home_work_outlined,
               validator: (value) =>
                   value!.isEmpty ? 'Please enter Address Line 1' : null,
+              isEditing: _isEditing,
             ),
-            const SizedBox(height: 16),
-            TextFormField(
+            const SizedBox(height: 20),
+            // Address Line 2 (Optional)
+            _buildModernTextField(
               controller: _addressLine2Controller,
-              enabled: _isEditing,
-              decoration: inputDecoration.copyWith(
-                labelText: 'Address Line 2 (Optional)',
-                labelStyle: TextStyle(
-                  color:
-                      _isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
-                ),
-                prefixIcon: const Icon(Icons.add_road_outlined),
-                hintText: 'Enter address line 2 (optional)',
-              ),
+              label: 'Address Line 2 (Optional)',
+              icon: Icons.add_road_outlined,
+              isEditing: _isEditing,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+            // Postcode and State Row
             Row(
               children: [
                 Expanded(
-                  child: TextFormField(
+                  child: _buildModernTextField(
                     controller: _postcodeController,
-                    enabled: _isEditing,
-                    decoration: inputDecoration.copyWith(
-                      labelText: 'Postcode',
-                      labelStyle: TextStyle(
-                        color: _isEditing
-                            ? Colors.grey.shade700
-                            : Colors.grey.shade500,
-                      ),
-                      prefixIcon: const Icon(Icons.markunread_mailbox_outlined),
-                      hintText: 'Postcode',
-                    ),
+                    label: 'Postcode',
+                    icon: Icons.markunread_mailbox_outlined,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     validator: (value) => value!.isEmpty ? 'Required' : null,
+                    isEditing: _isEditing,
                   ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: TextFormField(
+                  child: _buildModernTextField(
                     controller: _stateController,
-                    enabled: _isEditing,
-                    decoration: inputDecoration.copyWith(
-                      labelText: 'State',
-                      labelStyle: TextStyle(
-                        color: _isEditing
-                            ? Colors.grey.shade700
-                            : Colors.grey.shade500,
-                      ),
-                      prefixIcon: const Icon(Icons.location_city_outlined),
-                      hintText: 'State',
-                    ),
+                    label: 'State',
+                    icon: Icons.location_city_outlined,
                     validator: (value) => value!.isEmpty ? 'Required' : null,
+                    isEditing: _isEditing,
                   ),
                 ),
               ],
@@ -638,6 +728,86 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildModernTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    required bool isEditing,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? inputFormatters,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isEditing
+                  ? const Color(0xFF6366F1)
+                  : Colors.grey.shade500,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: isEditing ? Colors.white : Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isEditing
+                  ? const Color(0xFF6366F1).withOpacity(0.3)
+                  : Colors.grey.shade200,
+              width: 1,
+            ),
+          ),
+          child: TextFormField(
+            controller: controller,
+            enabled: isEditing,
+            keyboardType: keyboardType,
+            inputFormatters: inputFormatters,
+            validator: validator,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: isEditing
+                  ? const Color(0xFF1E293B)
+                  : Colors.grey.shade600,
+            ),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              disabledBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              hintText: 'Enter ${label.toLowerCase()}',
+              hintStyle: TextStyle(
+                fontSize: 15,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

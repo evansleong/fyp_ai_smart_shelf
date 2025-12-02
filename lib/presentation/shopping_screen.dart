@@ -49,6 +49,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
   @override
   void dispose() {
     _cartTimer?.cancel();
+    _sessionCheckTimer?.cancel();
     for (final unsub in _wsUnsubs) {
       try {
         unsub();
@@ -77,6 +78,8 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
     }
   }
 
+  Timer? _sessionCheckTimer;
+
   @override
   void initState() {
     super.initState();
@@ -93,12 +96,20 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       _wsUnsubs.add(
         webSocketService.on('message', (dynamic message) {
           try {
-            if (message is Map && message['type'] == 'cart_updated') {
-              final data = message['data'];
-              if (mounted && data is Map<String, dynamic>) {
-                setState(() {
-                  _cart = Cart.fromJson(data);
-                });
+            if (message is Map) {
+              // Handle cart updates
+              if (message['type'] == 'cart_updated') {
+                final data = message['data'];
+                if (mounted && data is Map<String, dynamic>) {
+                  setState(() {
+                    _cart = Cart.fromJson(data);
+                  });
+                }
+              }
+              // Handle session stop (forced end from Lambda)
+              else if (message['type'] == 'session.stop' || 
+                       message['type'] == 'session_stop') {
+                _handleSessionEnded();
               }
             }
           } catch (_) {}
@@ -107,7 +118,73 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       // Optional: react to disconnects if you want UI feedback later
       _wsUnsubs.add(webSocketService.on('disconnect', (_) {}));
       _wsUnsubs.add(webSocketService.on('connect', (_) {}));
+      
+      // Start periodic session check (fallback if WebSocket message fails)
+      _startSessionCheck();
     }
+  }
+
+  void _startSessionCheck() {
+    // Check session status every 5 seconds
+    _sessionCheckTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      try {
+        // Check if session is still active
+        final sessionStatus = await _apiService.checkSessionStatus(
+          shopId: widget.shopId,
+          shelfId: widget.shelfId,
+        );
+        
+        // If session is not active, end the shopping session
+        if (sessionStatus != null && sessionStatus['status'] != 'active') {
+          timer.cancel();
+          _handleSessionEnded();
+        }
+      } catch (e) {
+        // If check fails (e.g., session not found), end the session
+        print('Session check failed: $e');
+        timer.cancel();
+        _handleSessionEnded();
+      }
+    });
+  }
+
+  void _handleSessionEnded() {
+    if (!mounted) return;
+    
+    // Show notification
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Your shopping session has ended'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+    
+    // Clean up WebSocket
+    try {
+      webSocketService.send({
+        'action': 'unsubscribe',
+        'customer_id': widget.customerId,
+        'shop_id': widget.shopId,
+        'shelf_id': widget.shelfId,
+      });
+    } catch (_) {}
+    
+    try {
+      webSocketService.disconnect();
+    } catch (_) {}
+    
+    // Navigate back
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    });
   }
 
   // --- REFACTORED: Uses ApiService ---
