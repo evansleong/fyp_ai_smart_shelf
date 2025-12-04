@@ -148,96 +148,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
         elevation: 0,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                ),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.person,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Text(
-              'My Profile',
-              style: TextStyle(
-                color: Color(0xFF1E293B),
-                fontWeight: FontWeight.w700,
-                fontSize: 20,
-                letterSpacing: -0.5,
-              ),
-            ),
-          ],
+        title: const Text(
+          'My Profile',
+          style: TextStyle(
+            color: Color(0xFF1E293B),
+            fontWeight: FontWeight.w700,
+            fontSize: 22,
+            letterSpacing: -0.5,
+          ),
         ),
         iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
         actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: _isEditing
-                  ? const Color(0xFF6366F1)
-                  : const Color(0xFF6366F1).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _toggleEdit,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _isEditing ? Icons.check_rounded : Icons.edit_rounded,
-                        size: 18,
-                        color: _isEditing ? Colors.white : const Color(0xFF6366F1),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: _isEditing
+                ? Container(
+                    key: const ValueKey('cancel'),
+                    margin: const EdgeInsets.only(right: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.grey.shade300,
+                        width: 1.5,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _isEditing ? 'Save' : 'Edit',
-                        style: TextStyle(
-                          color: _isEditing ? Colors.white : const Color(0xFF6366F1),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          // Cancel edit mode - reset form
+                          _formKey.currentState?.reset();
+                          setState(() {
+                            _isEditing = false;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.close_rounded,
+                                size: 20,
+                                color: Colors.grey.shade700,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ],
+                    ),
+                  )
+                : Container(
+                    key: const ValueKey('edit'),
+                    margin: const EdgeInsets.only(right: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: const Color(0xFF6366F1).withOpacity(0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _toggleEdit,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.edit_note_rounded,
+                                size: 20,
+                                color: Color(0xFF6366F1),
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Edit Profile',
+                                style: TextStyle(
+                                  color: Color(0xFF6366F1),
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
         ],
       ),
       body: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 16),
-              if (_isLoadingPoints)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else
-                _buildRewardsCard(),
-              const SizedBox(height: 16),
-              _buildPersonalDetailsCard(),
-              const SizedBox(height: 16),
-              _buildContactDetailsCard(),
-              const SizedBox(height: 24),
-            ],
-          ),
+        child: Stack(
+          children: [
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  // Edit mode banner
+                  if (_isEditing) _buildEditModeBanner(),
+                  const SizedBox(height: 16),
+                  if (_isLoadingPoints)
+                    const Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else
+                    _buildRewardsCard(),
+                  const SizedBox(height: 16),
+                  _buildPersonalDetailsCard(),
+                  const SizedBox(height: 16),
+                  _buildContactDetailsCard(),
+                  SizedBox(height: _isEditing ? 100 : 24), // Extra space for floating button
+                ],
+              ),
+            ),
+            // Floating save button when editing (alternative to top button)
+            if (_isEditing)
+              Positioned(
+                bottom: 24,
+                left: 16,
+                right: 16,
+                child: _buildFloatingSaveButton(),
+              ),
+          ],
         ),
       ),
     );
@@ -745,12 +796,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Row(
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isEditing
-                  ? const Color(0xFF6366F1)
-                  : Colors.grey.shade500,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: isEditing
+                    ? const Color(0xFF6366F1).withOpacity(0.1)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                size: 16,
+                color: isEditing
+                    ? const Color(0xFF6366F1)
+                    : Colors.grey.shade500,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
@@ -758,22 +819,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isEditing ? Colors.grey.shade700 : Colors.grey.shade500,
+                color: isEditing 
+                    ? const Color(0xFF6366F1)
+                    : Colors.grey.shade500,
               ),
             ),
           ],
         ),
         const SizedBox(height: 8),
-        Container(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: isEditing ? Colors.white : Colors.grey.shade50,
+            color: isEditing 
+                ? Colors.white 
+                : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isEditing
-                  ? const Color(0xFF6366F1).withOpacity(0.3)
+                  ? const Color(0xFF6366F1).withOpacity(0.5)
                   : Colors.grey.shade200,
-              width: 1,
+              width: isEditing ? 2 : 1,
             ),
+            boxShadow: isEditing
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF6366F1).withOpacity(0.15),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                      spreadRadius: 0,
+                    ),
+                  ]
+                : null,
           ),
           child: TextFormField(
             controller: controller,
@@ -808,6 +884,137 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEditModeBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.edit_note_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Edit Mode',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tap fields below to edit your information',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text(
+              'ACTIVE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingSaveButton() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6366F1).withOpacity(0.5),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _toggleEdit,
+          borderRadius: BorderRadius.circular(20),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Save All Changes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

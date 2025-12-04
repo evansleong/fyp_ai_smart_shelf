@@ -30,7 +30,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   Map<String, int> _pointsByOrderId = {}; // Direct order_id -> points mapping
 
   // Filter state
-  List<String> _selectedPaymentTypes = [];
+  String? _selectedPaymentType; // Changed to single selection
   DateTime? _startDate;
   DateTime? _endDate;
   String? _selectedDateRangePreset;
@@ -265,11 +265,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       }).toList();
     }
 
-    if (_selectedPaymentTypes.isNotEmpty) {
+    if (_selectedPaymentType != null && _selectedPaymentType!.isNotEmpty) {
       filtered = filtered.where((transaction) {
         final paymentMethod =
             (transaction['payment_method'] ?? 'Card').toString();
-        return _selectedPaymentTypes.contains(paymentMethod);
+        return paymentMethod == _selectedPaymentType;
       }).toList();
     }
 
@@ -642,10 +642,10 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => _FilterBottomSheet(
         availablePaymentTypes: _availablePaymentTypes.toList()..sort(),
-        selectedPaymentTypes: _selectedPaymentTypes,
-        onPaymentTypesChanged: (selected) {
+        selectedPaymentType: _selectedPaymentType,
+        onPaymentTypeChanged: (selected) {
           setState(() {
-            _selectedPaymentTypes = selected;
+            _selectedPaymentType = selected;
           });
           _filterTransactions(); // Apply filter immediately
         },
@@ -1006,13 +1006,13 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
 
 class _FilterBottomSheet extends StatefulWidget {
   final List<String> availablePaymentTypes;
-  final List<String> selectedPaymentTypes;
-  final Function(List<String>) onPaymentTypesChanged;
+  final String? selectedPaymentType;
+  final Function(String?) onPaymentTypeChanged;
 
   const _FilterBottomSheet({
     required this.availablePaymentTypes,
-    required this.selectedPaymentTypes,
-    required this.onPaymentTypesChanged,
+    required this.selectedPaymentType,
+    required this.onPaymentTypeChanged,
   });
 
   @override
@@ -1020,27 +1020,22 @@ class _FilterBottomSheet extends StatefulWidget {
 }
 
 class _FilterBottomSheetState extends State<_FilterBottomSheet> {
-  late List<String> _tempSelectedTypes;
+  String? _tempSelectedType;
 
   @override
   void initState() {
     super.initState();
-    _tempSelectedTypes = List.from(widget.selectedPaymentTypes);
+    _tempSelectedType = widget.selectedPaymentType;
   }
 
-  void _togglePaymentType(String type) {
+  void _selectPaymentType(String type) {
     setState(() {
-      if (_tempSelectedTypes.contains(type)) {
-        _tempSelectedTypes.remove(type);
+      // If clicking the same type, deselect it (toggle off)
+      if (_tempSelectedType == type) {
+        _tempSelectedType = null;
       } else {
-        _tempSelectedTypes.add(type);
+        _tempSelectedType = type;
       }
-    });
-  }
-
-  void _clearAll() {
-    setState(() {
-      _tempSelectedTypes.clear();
     });
   }
 
@@ -1076,24 +1071,32 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
             ),
           ),
           const Divider(height: 1),
-          // Clear all button
-          if (_tempSelectedTypes.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: _clearAll,
-                  child: const Text(
-                    'Clear all',
-                    style: TextStyle(
-                      color: Color(0xFF6366F1),
-                      fontWeight: FontWeight.w600,
-                    ),
+          // Reset button
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () {
+                  widget.onPaymentTypeChanged(null);
+                  Navigator.pop(context);
+                },
+                icon: const Icon(
+                  Icons.refresh,
+                  size: 18,
+                  color: Color(0xFF6366F1),
+                ),
+                label: const Text(
+                  'Reset to show all',
+                  style: TextStyle(
+                    color: Color(0xFF6366F1),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
             ),
+          ),
+          const Divider(height: 1),
           // Payment type list
           if (widget.availablePaymentTypes.isEmpty)
             Padding(
@@ -1108,9 +1111,9 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
             )
           else
             ...widget.availablePaymentTypes.map((type) {
-              final isSelected = _tempSelectedTypes.contains(type);
+              final isSelected = _tempSelectedType == type;
               return InkWell(
-                onTap: () => _togglePaymentType(type),
+                onTap: () => _selectPaymentType(type),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -1127,17 +1130,22 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
                       Expanded(
                         child: Text(
                           type,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
-                            color: Color(0xFF1E293B),
+                            color: isSelected
+                                ? const Color(0xFF6366F1)
+                                : const Color(0xFF1E293B),
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
                       ),
-                      Icon(
-                        isSelected ? Icons.check_circle : Icons.circle_outlined,
-                        color: isSelected
-                            ? const Color(0xFF6366F1)
-                            : Colors.grey.shade400,
+                      Radio<String>(
+                        value: type,
+                        groupValue: _tempSelectedType,
+                        onChanged: (value) => _selectPaymentType(value!),
+                        activeColor: const Color(0xFF6366F1),
                       ),
                     ],
                   ),
@@ -1152,7 +1160,7 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  widget.onPaymentTypesChanged(_tempSelectedTypes);
+                  widget.onPaymentTypeChanged(_tempSelectedType);
                   Navigator.pop(context);
                 },
                 style: ElevatedButton.styleFrom(

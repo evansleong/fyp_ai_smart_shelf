@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 import 'dart:async';
 import 'welcome_screen.dart';
 import '../core/services/api_service.dart';
 import 'transaction_history_screen.dart';
+import 'transaction_details_screen.dart';
 import '../core/widgets/camera_screen.dart';
 import 'shelf_verification_screen.dart';
 import 'profile_screen.dart';
@@ -232,10 +234,46 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     );
                   },
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: _logout,
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.red.shade300,
+                width: 1.5,
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _logout,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.logout_rounded,
+                        size: 18,
+                        color: Colors.red.shade700,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'LOGOUT',
+                        style: TextStyle(
+                          color: Colors.red.shade700,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -348,6 +386,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   List<Map<String, dynamic>> _categoryChartData = [];
   String? _transactionError;
   
+  // State for recent transactions
+  List<Map<String, dynamic>> _recentTransactions = [];
+  bool _isLoadingRecentTransactions = true;
+  
   // State for AI insights
   Map<String, dynamic>? _aiInsights;
 
@@ -367,6 +409,7 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     // Fetch data immediately if customerId is already available
     if (widget.customerId != null) {
       _fetchTransactionOverview();
+      _fetchRecentTransactions();
     }
   }
 
@@ -376,6 +419,7 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     // When customerId becomes available (after profile loads), fetch data.
     if (widget.customerId != null && oldWidget.customerId == null) {
       _fetchTransactionOverview();
+      _fetchRecentTransactions();
     }
   }
 
@@ -383,6 +427,63 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   void refreshTransactionOverview() {
     if (widget.customerId != null) {
       _fetchTransactionOverview();
+      _fetchRecentTransactions();
+    }
+  }
+
+  Future<void> _fetchRecentTransactions() async {
+    if (widget.customerId == null) {
+      if (mounted) {
+        setState(() {
+          _isLoadingRecentTransactions = false;
+        });
+      }
+      return;
+    }
+
+    try {
+      // Fetch transaction history (simpler format for display)
+      final List<dynamic> transactions = 
+          await _apiService.getCustomerOrdersHistory(widget.customerId!);
+
+      // Filter out transactions with payment_method == "none"
+      final filteredTransactions = transactions.where((transaction) {
+        final paymentMethod = (transaction['payment_method'] ?? 'Card').toString().toLowerCase();
+        return paymentMethod != 'none';
+      }).toList();
+
+      // Sort by date (most recent first) and take first 3
+      final sortedTransactions = List<Map<String, dynamic>>.from(filteredTransactions);
+      sortedTransactions.sort((a, b) {
+        try {
+          final String aDateStr = a['date'] ?? '';
+          final String aTimeStr = a['time'] ?? '';
+          final String bDateStr = b['date'] ?? '';
+          final String bTimeStr = b['time'] ?? '';
+          
+          if (aDateStr.isEmpty || bDateStr.isEmpty) return 0;
+          
+          final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
+          final DateTime aDateTime = inputFormat.parse('$aDateStr $aTimeStr');
+          final DateTime bDateTime = inputFormat.parse('$bDateStr $bTimeStr');
+          return bDateTime.compareTo(aDateTime); // Descending (newest first)
+        } catch (e) {
+          return 0;
+        }
+      });
+
+      if (mounted) {
+        setState(() {
+          _recentTransactions = sortedTransactions.take(3).toList();
+          _isLoadingRecentTransactions = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingRecentTransactions = false;
+        });
+      }
     }
   }
 
@@ -822,6 +923,66 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                   }
                 },
               ),
+            const SizedBox(height: 24),
+
+            // Recent Transactions Section (inside Overview card)
+            if (!_isLoadingTransactions && _transactionError == null && _categoryChartData.isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Recent Transactions',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1E293B),
+                              letterSpacing: -0.3,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (_isLoadingRecentTransactions)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  else if (_recentTransactions.isEmpty)
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20.0),
+                        child: Text(
+                          'No recent transactions',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    ..._recentTransactions.map((transaction) => _buildRecentTransactionCard(transaction)),
+                  const SizedBox(height: 8),
+                ],
+              ),
+
             const SizedBox(height: 16),
 
             // Footer
@@ -1082,6 +1243,172 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   String _getDayName(int weekday) {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     return days[weekday - 1];
+  }
+
+  Widget _buildRecentTransactionCard(Map<String, dynamic> transaction) {
+    // Calculate amount
+    double amount = 0.0;
+    if (transaction['summary'] != null &&
+        transaction['summary']['total_price'] != null) {
+      amount = double.tryParse(transaction['summary']['total_price'].toString()) ?? 0.0;
+    } else if (transaction['amount'] != null) {
+      amount = double.tryParse(transaction['amount'].toString()) ?? 0.0;
+    }
+
+    final String displayAmount = 'RM ${amount.abs().toStringAsFixed(2)}';
+    final paymentMethod = transaction['payment_method'] ?? 'Card';
+    final shopName = transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
+    
+    // Date formatting
+    final String dateStr = transaction['date']?.toString() ?? '';
+    final String timeStr = transaction['time']?.toString() ?? '';
+    String displayDate = '';
+    String displayTime = '';
+    if (dateStr.isNotEmpty && timeStr.isNotEmpty) {
+      try {
+        final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
+        final dateTimeFormat = DateFormat('dd MMM');
+        final timeFormat = DateFormat('hh:mm a');
+        final DateTime parsedDateTime = inputFormat.parse('$dateStr $timeStr');
+        displayDate = dateTimeFormat.format(parsedDateTime);
+        displayTime = timeFormat.format(parsedDateTime);
+      } catch (_) {
+        displayDate = dateStr;
+        displayTime = timeStr;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          width: 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => TransactionDetailsScreen(
+                  transaction: transaction,
+                  shpUserId: widget.shpUserId,
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.shopping_bag_outlined,
+                    color: Color(0xFF6366F1),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        shopName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (displayDate.isNotEmpty) ...[
+                            Text(
+                              displayDate,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            Text(
+                              ' • ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400,
+                              ),
+                            ),
+                          ],
+                          Text(
+                            displayTime.isNotEmpty ? displayTime : paymentMethod,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      displayAmount,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: paymentMethod.toLowerCase() == 'points'
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFFDC2626),
+                      ),
+                    ),
+                    // Only show payment method badge if it's not "none"
+                    if (paymentMethod.toLowerCase() != 'none') ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          paymentMethod,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildAIInsightsSection(BuildContext context) {
