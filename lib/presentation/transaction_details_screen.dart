@@ -97,10 +97,12 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     final date = transaction['date'] ?? '';
     final time = transaction['time'] ?? '';
     final paymentMethod = transaction['payment_method'] ?? 'Card';
-    final items = _parseItems(transaction);
     
     // Use full order if available, otherwise use transaction from history
     final dataSource = _fullOrder ?? widget.transaction;
+    
+    // Parse items from the dataSource (which has full item details if _fullOrder is available)
+    final items = _parseItems(dataSource);
     
     // Parse summary for price breakdown
     final summary = dataSource['summary'];
@@ -114,6 +116,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     final totalPrice = parsedTotalPrice ?? _calculateTotal(items, amount);
     
     final totalAmount = totalPrice; // Use total_price from summary as the final amount
+    final isStolen = paymentMethod.toLowerCase() == 'none';
 
     String formattedDate = '';
     String formattedTime = '';
@@ -149,7 +152,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            _buildHeaderCard(shopName, totalAmount, formattedDate, formattedTime, subtotal, discount),
+            // Warning banner for stolen items
+            if (isStolen) _buildPaymentWarningBanner(totalAmount),
+            if (isStolen) const SizedBox(height: 16),
+            _buildHeaderCard(shopName, totalAmount, formattedDate, formattedTime, subtotal, discount, isStolen),
             const SizedBox(height: 16),
             if (items.isNotEmpty) _buildItemsSection(items),
             if (items.isEmpty) _buildSingleItemCard(transaction),
@@ -162,16 +168,121 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     );
   }
 
-  Widget _buildHeaderCard(String shopName, double totalAmount, String date, String time, double subtotal, double discount) {
+  Widget _buildPaymentWarningBanner(double amount) {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.red.shade600,
+            Colors.red.shade700,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Color(0x0A000000),
+            color: Colors.red.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.warning_amber_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Payment Required',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Items were not returned. Please pay the amount below.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.9),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Amount to Pay: ',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        'RM ${amount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderCard(String shopName, double totalAmount, String date, String time, double subtotal, double discount, bool isStolen) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: isStolen ? Colors.red.shade50 : Colors.white,
+        border: isStolen
+            ? Border.all(color: Colors.red.shade300, width: 1.5)
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: isStolen
+                ? Colors.red.withOpacity(0.1)
+                : const Color(0x0A000000),
             blurRadius: 8,
-            offset: Offset(0, 2),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -186,12 +297,18 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                   width: 56,
                   height: 56,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    color: isStolen
+                        ? Colors.red.shade100
+                        : const Color(0xFF6366F1).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Icon(
-                    Icons.receipt_long_rounded,
-                    color: Color(0xFF6366F1),
+                  child: Icon(
+                    isStolen
+                        ? Icons.warning_amber_rounded
+                        : Icons.receipt_long_rounded,
+                    color: isStolen
+                        ? Colors.red.shade700
+                        : const Color(0xFF6366F1),
                     size: 28,
                   ),
                 ),
@@ -234,8 +351,13 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
+                color: isStolen
+                    ? Colors.red.shade50
+                    : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
+                border: isStolen
+                    ? Border.all(color: Colors.red.shade200, width: 1)
+                    : null,
               ),
               child: Column(
                 children: [
@@ -305,10 +427,12 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       ),
                       Text(
                         'RM ${totalAmount.toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
+                          color: isStolen
+                              ? Colors.red.shade700
+                              : const Color(0xFFDC2626),
                         ),
                       ),
                     ],
@@ -427,7 +551,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${item.name} x ${item.quantity}',
+                      '${item.name} (${item.quantity})',
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -639,20 +763,165 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
   List<TransactionItem> _parseItems(Map<String, dynamic> transaction) {
     final items = <TransactionItem>[];
     
-    if (transaction['items'] != null && transaction['items'] is List) {
-      final itemsList = transaction['items'] as List;
+    // Get shop_id for constructing image URLs - handle DynamoDB format
+    String shopId = '';
+    if (transaction['shop_id'] != null) {
+      final shopIdValue = transaction['shop_id'];
+      if (shopIdValue is Map && shopIdValue.containsKey('S')) {
+        shopId = shopIdValue['S']?.toString() ?? '';
+      } else {
+        shopId = shopIdValue?.toString() ?? '';
+      }
+    }
+    
+    // First, try to parse from items array
+    if (transaction['items'] != null) {
+      dynamic itemsData = transaction['items'];
+      List<dynamic> itemsList = [];
+      
+      // Handle DynamoDB format: items might be a List or wrapped in DynamoDB format
+      if (itemsData is List) {
+        itemsList = itemsData;
+      } else if (itemsData is Map && itemsData.containsKey('L')) {
+        // DynamoDB List format: { "L": [...] }
+        itemsList = itemsData['L'] as List? ?? [];
+      }
+      
       for (var item in itemsList) {
+        Map<String, dynamic>? itemMap;
+        
+        // Handle DynamoDB Map format: { "M": { ... } }
         if (item is Map<String, dynamic>) {
-          final name = item['name']?.toString() ?? 'Unknown Item';
-          final price = _parseAmount(item['price'] ?? item['unit_price']);
-          final quantity = (item['quantity'] as num?)?.toInt() ?? 1;
-          final imageUrl = item['imageUrl']?.toString() ?? item['image_url']?.toString();
+          if (item.containsKey('M')) {
+            itemMap = item['M'] as Map<String, dynamic>?;
+          } else {
+            itemMap = item;
+          }
+        }
+        
+        if (itemMap != null) {
+          // Extract product_id first (needed for image URL construction)
+          String? productId;
+          if (itemMap['product_id'] != null) {
+            final productIdValue = itemMap['product_id'];
+            if (productIdValue is Map && productIdValue.containsKey('S')) {
+              productId = productIdValue['S']?.toString();
+            } else {
+              productId = productIdValue?.toString();
+            }
+          }
+          
+          // Extract name - handle DynamoDB String format
+          String name = 'Unknown Item';
+          if (itemMap['name'] != null) {
+            final nameValue = itemMap['name'];
+            if (nameValue is Map && nameValue.containsKey('S')) {
+              name = nameValue['S']?.toString() ?? 'Unknown Item';
+            } else {
+              name = nameValue?.toString() ?? 'Unknown Item';
+            }
+          } else if (itemMap['product_name'] != null) {
+            final nameValue = itemMap['product_name'];
+            if (nameValue is Map && nameValue.containsKey('S')) {
+              name = nameValue['S']?.toString() ?? 'Unknown Item';
+            } else {
+              name = nameValue?.toString() ?? 'Unknown Item';
+            }
+          }
+          
+          // Extract price - handle multiple formats
+          double price = 0.0;
+          if (itemMap['price'] != null) {
+            price = _parseAmount(itemMap['price']);
+          } else if (itemMap['unit_price'] != null) {
+            price = _parseAmount(itemMap['unit_price']);
+          } else if (itemMap['unit_price_cents'] != null) {
+            final centsValue = itemMap['unit_price_cents'];
+            if (centsValue is Map && centsValue.containsKey('N')) {
+              final cents = double.tryParse(centsValue['N']?.toString() ?? '0') ?? 0.0;
+              price = cents / 100.0;
+            } else {
+              final cents = (centsValue as num?)?.toDouble();
+              price = cents != null ? cents / 100.0 : 0.0;
+            }
+          }
+          
+          // Extract quantity - handle DynamoDB Number format
+          int quantity = 1;
+          if (itemMap['quantity'] != null) {
+            final qtyValue = itemMap['quantity'];
+            if (qtyValue is Map && qtyValue.containsKey('N')) {
+              quantity = int.tryParse(qtyValue['N']?.toString() ?? '1') ?? 1;
+            } else {
+              quantity = (qtyValue as num?)?.toInt() ?? 1;
+            }
+          }
+          
+          // Extract or construct imageUrl
+          String? imageUrl;
+          
+          // First, try to get from item fields
+          if (itemMap['imageUrl'] != null) {
+            final imgValue = itemMap['imageUrl'];
+            if (imgValue is Map && imgValue.containsKey('S')) {
+              imageUrl = imgValue['S']?.toString();
+            } else {
+              imageUrl = imgValue?.toString();
+            }
+          } else if (itemMap['image_url'] != null) {
+            final imgValue = itemMap['image_url'];
+            if (imgValue is Map && imgValue.containsKey('S')) {
+              imageUrl = imgValue['S']?.toString();
+            } else {
+              imageUrl = imgValue?.toString();
+            }
+          } else if (itemMap['product_image_url'] != null) {
+            final imgValue = itemMap['product_image_url'];
+            if (imgValue is Map && imgValue.containsKey('S')) {
+              imageUrl = imgValue['S']?.toString();
+            } else {
+              imageUrl = imgValue?.toString();
+            }
+          }
+          
+          // If no imageUrl found and we have product_id and shop_id, construct it
+          if (imageUrl == null && productId != null && productId.isNotEmpty && shopId.isNotEmpty) {
+            // Construct S3 URL: https://smartshelf-data.s3.ap-southeast-1.amazonaws.com/shops/{shop_id}/products/{product_id}/image_1.jpg
+            imageUrl = 'https://smartshelf-data.s3.ap-southeast-1.amazonaws.com/shops/$shopId/products/$productId/image_1.jpg';
+          }
+          
           items.add(TransactionItem(
             name: name,
             price: price,
             quantity: quantity,
             imageUrl: imageUrl,
           ));
+        }
+      }
+    }
+    
+    // If no items found in array, try to parse from details field (e.g., "anmuxi(1), chapi(1)")
+    if (items.isEmpty) {
+      final details = transaction['details']?.toString() ?? '';
+      if (details.isNotEmpty && details.contains('(')) {
+        // Split by comma and parse each item
+        final itemStrings = details.split(',');
+        for (var itemStr in itemStrings) {
+          itemStr = itemStr.trim();
+          // Match pattern like "anmuxi(1)" or "chapi(1)"
+          final regex = RegExp(r'^(.+?)\s*\((\d+)\)$');
+          final match = regex.firstMatch(itemStr);
+          if (match != null) {
+            final name = match.group(1)?.trim() ?? 'Unknown Item';
+            final quantity = int.tryParse(match.group(2) ?? '1') ?? 1;
+            // For parsed items from details, we don't have price info, so use 0
+            items.add(TransactionItem(
+              name: name,
+              price: 0.0,
+              quantity: quantity,
+              imageUrl: null,
+            ));
+          }
         }
       }
     }

@@ -469,6 +469,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
     final String displayAmount = 'RM ${amount.abs().toStringAsFixed(2)}';
     final paymentMethod = transaction['payment_method'] ?? 'Card';
+    final isStolen = paymentMethod.toLowerCase() == 'none';
     final shopName =
         transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
     
@@ -494,11 +495,16 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
-          color: Colors.white,
+          color: isStolen ? Colors.red.shade50 : Colors.white,
           borderRadius: BorderRadius.circular(16),
+          border: isStolen
+              ? Border.all(color: Colors.red.shade300, width: 1.5)
+              : null,
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: isStolen
+                    ? Colors.red.withOpacity(0.1)
+                    : Colors.black.withOpacity(0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 2))
           ]),
@@ -525,10 +531,18 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withOpacity(0.1),
+                      color: isStolen
+                          ? Colors.red.shade100
+                          : const Color(0xFF6366F1).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.shopping_bag_outlined,
-                      color: Color(0xFF6366F1), size: 24),
+                  child: Icon(
+                      isStolen
+                          ? Icons.warning_amber_rounded
+                          : Icons.shopping_bag_outlined,
+                      color: isStolen
+                          ? Colors.red.shade700
+                          : const Color(0xFF6366F1),
+                      size: 24),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -585,24 +599,51 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
-                            color: paymentMethod.toLowerCase() == 'points' 
-                                ? const Color(0xFF2563EB) // Blue for points
-                                : const Color(0xFFDC2626))), // Red for other methods
+                            color: isStolen
+                                ? Colors.red.shade700
+                                : paymentMethod.toLowerCase() == 'points' 
+                                    ? const Color(0xFF2563EB) // Blue for points
+                                    : const Color(0xFFDC2626))), // Red for other methods
 
-                    // Payment method badge (always shown)
+                    // Payment method badge (hide for stolen items, show warning instead)
                     const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(4)),
-                      child: Text(paymentMethod,
-                          style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.grey.shade700)),
-                    ),
+                    if (isStolen)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.red.shade100,
+                            borderRadius: BorderRadius.circular(4)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 12,
+                              color: Colors.red.shade700,
+                            ),
+                            const SizedBox(width: 4),
+                            Text('Missing Items',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.red.shade700)),
+                          ],
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(4)),
+                        child: Text(paymentMethod,
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.grey.shade700)),
+                      ),
                   ],
                 ),
               ],

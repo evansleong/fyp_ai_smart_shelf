@@ -509,9 +509,15 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
       // use KAH YUNG data first
       //const String testCustomerId = "9a3e4a12-0652-441d-959b-584bd07ed05a";
       // 1. Fetch Orders
-      final List<dynamic> orders =
+      final List<dynamic> allOrders =
           //await _apiService.getCustomerOrders(testCustomerId);
       await _apiService.getCustomerOrders(widget.customerId!);
+
+      // Filter out stolen items (payment_method == "none")
+      final List<dynamic> orders = allOrders.where((order) {
+        final paymentMethod = (order['payment_method'] ?? 'Card').toString().toLowerCase();
+        return paymentMethod != 'none';
+      }).toList();
 
       // 2. Process Orders
       final Map<String, double> categorySpend = {};
