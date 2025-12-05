@@ -275,7 +275,8 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
         _parseAndPopulateData(data);
         _showSuccessSnackBar('Details extracted successfully!');
       } else {
-        _showErrorSnackBar('Could not extract details. Please try again.');
+        // OCR returned null - image is blurry or details cannot be extracted
+        _showErrorSnackBar('Please recapture to ensure clearness');
       }
     } catch (e) {
       if (!mounted) return;

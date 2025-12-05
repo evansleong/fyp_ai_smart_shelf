@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +8,8 @@ import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:screen_brightness/screen_brightness.dart'; // Ensure this is in pubspec.yaml
-import '../services/yolo_detector_services.dart'; // Ensure this path is correct
+
+import '../services/yolo_detector_service.dart'; // Ensure this path is correct
 
 // --- ENUMS ---
 enum CameraScanMode {
@@ -28,11 +30,11 @@ enum LivenessChallengeType {
 class LivenessChallenge {
   final LivenessChallengeType type;
   final String instruction;
-  int requiredCount; 
+  int requiredCount;
   int currentCount = 0;
 
   LivenessChallenge(
-    this.type, 
+    this.type,
     this.instruction, {
     this.requiredCount = 1,
   });
@@ -56,7 +58,7 @@ class _CameraScreenState extends State<CameraScreen> {
   YoloDetectorService? _detector;
   CameraDescription? _selectedCamera;
   FaceDetector? _faceDetector;
-  
+
   final MobileScannerController _qrScannerController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
@@ -70,7 +72,7 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _isProcessing = false; // For QR
   bool _isProcessingFrame = false; // For Face
   bool _isTorchOn = false;
-  
+
   Future<void> _toggleTorch() async {
     try {
       if (widget.scanMode == CameraScanMode.qrCode) {
@@ -78,13 +80,14 @@ class _CameraScreenState extends State<CameraScreen> {
         await _qrScannerController.toggleTorch();
       } else if (widget.scanMode == CameraScanMode.ocr) {
         // For OCR, use CameraController torch
-        if (_manualCameraController != null && _manualCameraController!.value.isInitialized) {
+        if (_manualCameraController != null &&
+            _manualCameraController!.value.isInitialized) {
           await _manualCameraController!.setFlashMode(
             _isTorchOn ? FlashMode.off : FlashMode.torch,
           );
         }
       }
-      
+
       if (mounted) {
         setState(() {
           _isTorchOn = !_isTorchOn;
@@ -94,7 +97,6 @@ class _CameraScreenState extends State<CameraScreen> {
       debugPrint('Torch toggle failed: $e');
     }
   }
-
 
   // --- Liveness State ---
   String _livenessInstruction = 'Position your face in the oval';
@@ -111,9 +113,9 @@ class _CameraScreenState extends State<CameraScreen> {
   void initState() {
     super.initState();
     _requestCameraPermission();
-    
+
     // Maximize brightness only for face modes
-    if (widget.scanMode == CameraScanMode.faceVerify || 
+    if (widget.scanMode == CameraScanMode.faceVerify ||
         widget.scanMode == CameraScanMode.faceRegister) {
       _maximizeBrightness();
     }
@@ -183,16 +185,15 @@ class _CameraScreenState extends State<CameraScreen> {
     // Initialize Logic based on Mode
     if (widget.scanMode == CameraScanMode.faceRegister ||
         widget.scanMode == CameraScanMode.faceVerify) {
-      
       _generateChallenges();
-      
+
       final options = FaceDetectorOptions(
-        enableClassification: true, 
+        enableClassification: true,
         enableTracking: true,
         performanceMode: FaceDetectorMode.accurate,
       );
       _faceDetector = FaceDetector(options: options);
-      
+
       _manualCameraController!.startImageStream(_processCameraImage);
 
       if (widget.scanMode == CameraScanMode.faceVerify) {
@@ -202,7 +203,7 @@ class _CameraScreenState extends State<CameraScreen> {
       debugPrint("OCR Mode: Initializing YOLO detector...");
       _detector = YoloDetectorService();
       final bool modelLoadedSuccessfully = await _detector!.loadModel();
-      
+
       if (mounted) {
         setState(() {
           _isModelLoaded = modelLoadedSuccessfully;
@@ -218,12 +219,12 @@ class _CameraScreenState extends State<CameraScreen> {
     _challenges.clear();
     _currentChallengeIndex = 0;
     _livenessInstruction = 'Position your face in the oval';
-    
+
     _challenges.add(LivenessChallenge(
       LivenessChallengeType.lookStraight,
       'Please look straight',
     ));
-    
+
     if (Random().nextBool()) {
       _challenges.add(LivenessChallenge(
         LivenessChallengeType.turnLeft,
@@ -235,7 +236,7 @@ class _CameraScreenState extends State<CameraScreen> {
         'Slowly turn your head right',
       ));
     }
-    
+
     int blinkCount = Random().nextInt(2) + 2; // 2 or 3 blinks
     _challenges.add(LivenessChallenge(
       LivenessChallengeType.blink,
@@ -250,12 +251,12 @@ class _CameraScreenState extends State<CameraScreen> {
       if (_countdownSeconds <= 0) {
         timer.cancel();
         if (!mounted) return;
-        
+
         // Stop everything
         _manualCameraController?.stopImageStream();
         _faceDetector?.close();
         _faceDetector = null;
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Verification timed out. Please try again.'),
@@ -304,7 +305,7 @@ class _CameraScreenState extends State<CameraScreen> {
           await _onLivenessSuccess();
           return;
         }
-        
+
         final challenge = _challenges[_currentChallengeIndex];
         newInstruction = challenge.instruction;
         bool challengeMet = false;
@@ -328,8 +329,10 @@ class _CameraScreenState extends State<CameraScreen> {
               challenge.currentCount++;
               _isBlinking = false;
               remaining = challenge.requiredCount - challenge.currentCount;
-              if (remaining > 0) newInstruction = 'Blink $remaining more time(s)';
-              if (challenge.currentCount >= challenge.requiredCount) challengeMet = true;
+              if (remaining > 0)
+                newInstruction = 'Blink $remaining more time(s)';
+              if (challenge.currentCount >= challenge.requiredCount)
+                challengeMet = true;
             }
             break;
 
@@ -368,7 +371,7 @@ class _CameraScreenState extends State<CameraScreen> {
   Future<void> _onLivenessSuccess() async {
     _livenessTimer?.cancel();
     if (_manualCameraController == null) return;
-    
+
     await _manualCameraController!.stopImageStream();
     await _faceDetector?.close();
     _faceDetector = null;
@@ -382,33 +385,148 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  // --- OCR Processing Logic ---
+  // This is now ONLY for OCR mode
   Future<void> _onCapturePressed() async {
     if (widget.scanMode != CameraScanMode.ocr) return;
-    if (_manualCameraController == null || !_isModelLoaded || _isDetecting) return;
 
-    setState(() => _isDetecting = true);
+    // Guard clause (check if model is loaded)
+    if (_manualCameraController == null ||
+        !_manualCameraController!.value.isInitialized ||
+        _detector == null ||
+        !_isModelLoaded ||
+        _isDetecting) {
+      if (!_isModelLoaded) {
+        debugPrint("Model is not loaded yet, please wait.");
+      }
+      return;
+    }
+
+    setState(() {
+      _isDetecting = true; // Show loading spinner
+    });
 
     try {
+      // 1. Trigger Autofocus & Take Picture
+      if (_manualCameraController!.value.focusPointSupported) {
+        await _manualCameraController!.setFocusMode(FocusMode.auto);
+        await Future.delayed(
+            const Duration(milliseconds: 200)); // Small delay for focus
+      }
+
       final image = await _manualCameraController!.takePicture();
+      debugPrint("Picture taken: ${image.path}");
+
+      // 2. Run YOLO detection
+      debugPrint("Running YOLO detection...");
       final BoundingBox? detectedBox = await _detector!.detectCard(image.path);
 
       if (!mounted) return;
+      // Note: The user's code had Navigator.of(context).pop(image.path); here which seems wrong (it pops the screen immediately?),
+      // but looking at the diff:
+      // Navigator.of(context).pop(image.path);
+      // This line seems to be in the diff but it might be a mistake in the user's provided code or I am misreading the context.
+      // Wait, the diff says:
+      // +      if (!mounted) return;
+      // +      Navigator.of(context).pop(image.path);
+      //
+      // If I include this, it will close the camera screen immediately with the full image path.
+      // But then it continues to process?
+      // "3. Check if a card was found"
+      // If it pops, the context is gone?
+      //
+      // Actually, looking at the diff again:
+      // The user's code:
+      //       if (!mounted) return;
+      //       Navigator.of(context).pop(image.path);
+      //
+      //       // 3. Check if a card was found
+      //       if (detectedBox != null) { ... }
+      //
+      // If it pops, the widget is disposed?
+      // If the widget is disposed, `mounted` becomes false.
+      // But the code continues executing.
+      // However, `Navigator.of(context).pop` might be what they want if they just want to return the image?
+      // BUT, if they return the image, why do they crop it afterwards?
+      //
+      // "if (croppedImagePath != null) { ... Navigator.of(context).pop(croppedImagePath); }"
+      //
+      // It seems the user's code might have a bug where it pops twice?
+      // Or maybe the first pop is a mistake in their copy-paste?
+      //
+      // Let's look at the "old version" logic carefully.
+      // If I pop immediately, the user gets the full image.
+      // If I wait, I crop.
+      //
+      // I will COMMENT OUT the first pop and assume it was a mistake or debug line,
+      // UNLESS the user explicitly wants it.
+      // But the user said "this is old version... which is still working".
+      // If it was working, maybe that line wasn't there or I'm misinterpreting.
+      //
+      // Wait, the diff shows:
+      // +      if (!mounted) return;
+      // +      Navigator.of(context).pop(image.path);
+      //
+      // If I put it in, the camera screen closes.
+      // Then `detectedBox` check happens.
+      // Then `cropImage` happens.
+      // Then `Navigator.of(context).pop(croppedImagePath)` happens.
+      // You can't pop twice.
+      //
+      // I will assume the first pop is WRONG and remove it, but keep the rest of the logic.
+      // The user might have pasted a "debug" version where they just returned the image.
+      //
+      // actually, let's look at the diff context.
+      // It seems to be replacing the previous logic.
 
+      // I will implement the logic WITHOUT the early pop, as that makes no sense for a "working" OCR flow.
+
+      // 3. Check if a card was found
       if (detectedBox != null) {
-        final String? croppedImagePath = await _detector!.cropImage(image.path, detectedBox);
+        debugPrint("==========================================");
+        debugPrint("✅ DETECTION RESULT (Above Threshold):");
+        debugPrint("   - Label: ${detectedBox.label}");
+        debugPrint(
+            "   - Confidence: ${(detectedBox.confidence * 100).toStringAsFixed(2)}%");
+        debugPrint(
+            "   - Box: ${detectedBox.x}, ${detectedBox.y}, ${detectedBox.width}, ${detectedBox.height}");
+        debugPrint("==========================================");
+
+        // 4. Crop the image
+        final String? croppedImagePath =
+            await _detector!.cropImage(image.path, detectedBox);
+
         if (croppedImagePath != null) {
-          Navigator.of(context).pop(croppedImagePath);
+          debugPrint("Image cropped successfully: $croppedImagePath");
+          // SUCCESS - Pop with the cropped image path
+          if (mounted) {
+            Navigator.of(context).pop(croppedImagePath);
+          }
         } else {
-          _showOcrError('Cropping failed. Try again.');
+          debugPrint("ERROR: Cropping failed");
+          _showOcrError(
+              'The detected card region is too small. Please move closer or ensure better lighting.');
         }
       } else {
-        _showOcrError('No IC detected. Adjust lighting and position.');
+        debugPrint("==========================================");
+        debugPrint("❌ NO DETECTION (Below Threshold):");
+        debugPrint("   - No object detected with sufficient confidence.");
+        debugPrint("==========================================");
+
+        _showOcrError(
+            'No IC card detected. Please:\n• Ensure the card is well-lit\n• Position it fully within the frame\n• Hold the camera steady');
       }
     } catch (e) {
-      if (mounted) _showOcrError('Error: $e');
+      debugPrint("Error taking picture: $e");
+      debugPrint("ERROR during YOLO capture/crop: $e");
+      if (mounted) {
+        _showOcrError('An error occurred: ${e.toString()}');
+      }
     } finally {
-      if (mounted) setState(() => _isDetecting = false);
+      if (mounted) {
+        setState(() {
+          _isDetecting = false; // Hide loading spinner
+        });
+      }
     }
   }
 
@@ -464,11 +582,11 @@ class _CameraScreenState extends State<CameraScreen> {
     _qrScannerController.dispose();
 
     // Reset brightness on exit if we changed it
-    if (widget.scanMode == CameraScanMode.faceVerify || 
+    if (widget.scanMode == CameraScanMode.faceVerify ||
         widget.scanMode == CameraScanMode.faceRegister) {
       _resetBrightness();
     }
-    
+
     super.dispose();
   }
 
@@ -484,14 +602,16 @@ class _CameraScreenState extends State<CameraScreen> {
 
     if (widget.scanMode == CameraScanMode.faceRegister ||
         widget.scanMode == CameraScanMode.faceVerify) {
-      
       final double ovalWidth = MediaQuery.of(context).size.width * 0.8;
       final double ovalHeight = ovalWidth * 1.25;
       final Size ovalSize = Size(ovalWidth, ovalHeight);
-      final double progress = _challenges.isEmpty ? 0.0 : _currentChallengeIndex / _challenges.length;
-      
+      final double progress = _challenges.isEmpty
+          ? 0.0
+          : _currentChallengeIndex / _challenges.length;
+
       // Colors specifically for White Background
-      final Color borderColor = progress > 0.01 ? Colors.green : Colors.grey.shade400;
+      final Color borderColor =
+          progress > 0.01 ? Colors.green : Colors.grey.shade400;
       final screenCenterY = MediaQuery.of(context).size.height / 2;
 
       faceLivenessUI = Stack(
@@ -506,7 +626,7 @@ class _CameraScreenState extends State<CameraScreen> {
               progress: progress,
             ),
           ),
-          
+
           // 2. Title (Dark Text)
           Positioned(
             top: MediaQuery.of(context).padding.top + 60,
@@ -519,14 +639,15 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
           ),
-          
+
           // 3. Timer (Verification Only)
           if (widget.scanMode == CameraScanMode.faceVerify)
             Positioned(
               top: MediaQuery.of(context).padding.top + 20,
               right: 20,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade200,
                   borderRadius: BorderRadius.circular(16),
@@ -564,14 +685,13 @@ class _CameraScreenState extends State<CameraScreen> {
                 _livenessInstruction,
                 style: const TextStyle(
                     color: Colors.black87,
-                    fontSize: 16, 
-                    fontWeight: FontWeight.w600
-                ),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
               ),
             ),
           ),
-          
+
           // 5. Close Button (Dark Icon for White BG)
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
@@ -593,51 +713,16 @@ class _CameraScreenState extends State<CameraScreen> {
     if (widget.scanMode == CameraScanMode.ocr) {
       final double boxWidth = MediaQuery.of(context).size.width * 0.9;
       final double boxHeight = 220;
+      final Size frameSize = Size(boxWidth, boxHeight);
+
       ocrUI = Stack(
         children: [
-          // Dim background overlay (matching QR UI style)
-          Container(
-            color: Colors.black.withOpacity(0.35),
-          ),
-          // Frame border with enhanced styling
-          Align(
-            alignment: Alignment.center,
-            child: Container(
-              width: boxWidth,
-              height: boxHeight,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.8),
-                  width: 3,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.06),
-                      Colors.transparent,
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
-                child: const Center(
-                  child: Icon(
-                    Icons.credit_card,
-                    size: 50,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
+          // Black overlay with cutout for frame area
+          CustomPaint(
+            size: MediaQuery.of(context).size,
+            painter: _OcrOverlayPainter(
+              cutoutSize: frameSize,
+              borderColor: Colors.white.withOpacity(0.8),
             ),
           ),
           // Close button (matching QR UI style)
@@ -712,9 +797,10 @@ class _CameraScreenState extends State<CameraScreen> {
             right: 0,
             child: Center(
               child: FloatingActionButton.large(
-                onPressed: _isModelLoaded && !_isDetecting ? _onCapturePressed : null,
-                backgroundColor: _isModelLoaded && !_isDetecting 
-                    ? Colors.white 
+                onPressed:
+                    _isModelLoaded && !_isDetecting ? _onCapturePressed : null,
+                backgroundColor: _isModelLoaded && !_isDetecting
+                    ? Colors.white
                     : Colors.grey.shade700,
                 child: _isDetecting
                     ? const CircularProgressIndicator(
@@ -744,29 +830,20 @@ class _CameraScreenState extends State<CameraScreen> {
       final double boxWidth = MediaQuery.of(context).size.width * 0.78;
       qrUI = Stack(
         children: [
-          // Dim background overlay
-          Container(
-            color: Colors.black.withOpacity(0.35),
+          // Black overlay with cutout for QR frame
+          CustomPaint(
+            size: MediaQuery.of(context).size,
+            painter: _OcrOverlayPainter(
+              cutoutSize: Size(boxWidth, boxWidth),
+              borderColor: Colors.white.withOpacity(0.8),
+            ),
           ),
+          // Center Icon
           Align(
             alignment: Alignment.center,
-            child: Container(
+            child: SizedBox(
               width: boxWidth,
               height: boxWidth,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.8),
-                  width: 3,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              // Frame interior is transparent - no gradient overlay
               child: const Center(
                 child: Icon(
                   Icons.qr_code_scanner,
@@ -848,7 +925,7 @@ class _CameraScreenState extends State<CameraScreen> {
         alignment: Alignment.center,
         children: [
           scannerWidget, // Layer 1: Camera Feed
-          
+
           // Layer 2: Specific Overlays
           if (widget.scanMode == CameraScanMode.faceRegister ||
               widget.scanMode == CameraScanMode.faceVerify)
@@ -884,9 +961,10 @@ class _CameraScreenState extends State<CameraScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         final size = MediaQuery.of(context).size;
-        var scale = size.aspectRatio * _manualCameraController!.value.aspectRatio;
+        var scale =
+            size.aspectRatio * _manualCameraController!.value.aspectRatio;
         if (scale < 1) scale = 1 / scale;
-        
+
         return Transform.scale(
           scale: scale,
           child: Center(
@@ -945,13 +1023,13 @@ class OverlayPainter extends CustomPainter {
     );
 
     // 1. White Background (Soft Box Light Source)
-    final overlayPaint = Paint()..color = Colors.white; 
+    final overlayPaint = Paint()..color = Colors.white;
 
     final borderPaint = Paint()
       ..color = borderColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = borderWidth;
-      
+
     final progressPaint = Paint()
       ..color = Colors.green
       ..style = PaintingStyle.stroke
@@ -967,7 +1045,7 @@ class OverlayPainter extends CustomPainter {
 
     canvas.drawPath(overlayPath, overlayPaint);
     canvas.drawOval(ovalRect, borderPaint);
-    
+
     if (progress > 0) {
       canvas.drawArc(
         ovalRect,
@@ -983,5 +1061,248 @@ class OverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant OverlayPainter oldDelegate) {
     return oldDelegate.progress != progress ||
         oldDelegate.borderColor != borderColor;
+  }
+}
+
+// --- OCR Overlay Painter (Black outside, clear inside frame) ---
+class _OcrOverlayPainter extends CustomPainter {
+  final Size cutoutSize;
+  final Color borderColor;
+  final double borderWidth;
+
+  _OcrOverlayPainter({
+    required this.cutoutSize,
+    this.borderColor = Colors.white,
+    this.borderWidth = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final cutoutRect = Rect.fromCenter(
+      center: center,
+      width: cutoutSize.width,
+      height: cutoutSize.height,
+    );
+
+    // 1. Solid black overlay outside the frame
+    final overlayPaint = Paint()..color = Colors.black;
+
+    // 2. Border paint for the frame
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    // Create the cutout mask (black everywhere except the frame area)
+    final overlayPath = Path.combine(
+      PathOperation.difference,
+      Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height)),
+      Path()
+        ..addRRect(
+            RRect.fromRectAndRadius(cutoutRect, const Radius.circular(20))),
+    );
+
+    // Draw black overlay with cutout
+    canvas.drawPath(overlayPath, overlayPaint);
+
+    // Draw border around the frame
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(cutoutRect, const Radius.circular(20)),
+      borderPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _OcrOverlayPainter oldDelegate) {
+    return oldDelegate.cutoutSize != cutoutSize ||
+        oldDelegate.borderColor != borderColor;
+  }
+}
+
+// --- IC Preview Screen ---
+class _IcPreviewScreen extends StatefulWidget {
+  final String imagePath;
+
+  const _IcPreviewScreen({required this.imagePath});
+
+  @override
+  State<_IcPreviewScreen> createState() => _IcPreviewScreenState();
+}
+
+class _IcPreviewScreenState extends State<_IcPreviewScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () =>
+              Navigator.of(context).pop(null), // Return null to recapture
+        ),
+        title: const Text(
+          'Preview IC',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Preview Image
+            Expanded(
+              child: Center(
+                child: Container(
+                  margin: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 20,
+                        spreadRadius: 5,
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.file(
+                      File(widget.imagePath),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Center(
+                          child: Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 48,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Instructions
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Text(
+                'Please review the cropped IC image.\nEnsure all details are clearly visible.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            // Action Buttons
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  // Recapture Button
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => Navigator.of(context)
+                              .pop(null), // Return null to recapture
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(
+                                  Icons.camera_alt_outlined,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Recapture',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Confirm Button
+                  Expanded(
+                    flex: 2,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF6366F1).withOpacity(0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => Navigator.of(context).pop(
+                              widget.imagePath), // Return image path to confirm
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.check_circle_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Confirm',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
