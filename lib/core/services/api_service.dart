@@ -15,7 +15,7 @@ class ApiService {
   Future<String> createLivenessSession() async {
     final response = await http.get(
       Uri.parse(
-          '$_baseUrl/create-session'), // Ensure this path matches your API Gateway
+          '$_baseUrl/create-session'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -38,13 +38,13 @@ class ApiService {
   }) async {
     final response = await http.post(
       Uri.parse(
-          '$_baseUrl/search-face'), // Ensure this path matches your API Gateway
+          '$_baseUrl/search-face'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'sessionId': sessionId,
         'shelfId': shelfId,
         'action':
-            action, // Optional, depending on if your Lambda uses it for logging
+            action,
       }),
     );
 
@@ -52,8 +52,6 @@ class ApiService {
     final double confidence = responseBody['confidence'] ?? 0.0;
 
     if (response.statusCode == 200) {
-      // 🟢 PRINT RESULT HERE
-      //final double confidence = responseBody['confidence'] ?? 0.0;
       final bool isLive = confidence > 85; // AWS Threshold
 
       print("==========================================");
@@ -71,7 +69,6 @@ class ApiService {
 
       return responseBody['user'];
     } else {
-      // 🔴 PRINT FAILURE
       print("❌ LIVENESS FAILED");
       print("Confidence Score: $confidence%");
       print("Error: ${responseBody['error']}");
@@ -82,7 +79,6 @@ class ApiService {
 
   Future<bool> checkIcExists(String icNumber) async {
     final response = await http.get(
-      // Assumes your new endpoint is /check-ic
       Uri.parse('$_baseUrl/check-ic?icNumber=$icNumber'),
     );
 
@@ -170,25 +166,22 @@ class ApiService {
   /// Returns the decoded user map on success.
   Future<Map<String, dynamic>> verifyFace(String imageBase64,
       {String action = 'login', String? shelfId}) async {
-    // <-- 1. ADD shelfId HERE
 
     // Create the request body
     final Map<String, dynamic> body = {
-      // <-- 2. CREATE THIS MAP
       'imageBase64': imageBase64,
       'action': action,
     };
 
     // Add shelfId ONLY if it's provided
     if (shelfId != null) {
-      // <-- 3. ADD THIS IF-STATEMENT
       body['shelfId'] = shelfId;
     }
 
     final response = await http.post(
       Uri.parse('$_baseUrl/search-face'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body), // <-- 4. SEND THE NEW body
+      body: jsonEncode(body),
     );
 
     final responseBody = jsonDecode(response.body);
@@ -333,8 +326,6 @@ class ApiService {
   /// Fetches a list of formatted orders for a specific customer.
   /// Throws an exception if the network call fails.
   Future<List<dynamic>> getCustomerOrders(String customerId) async {
-    // You'll need to create this endpoint in your API Gateway.
-    // I'm using '/orders/{customerId}' as an example.
     final response = await http.get(
       Uri.parse('$_baseUrl/orders/$customerId'),
       headers: {
@@ -346,7 +337,6 @@ class ApiService {
     final responseBody = jsonDecode(response.body);
 
     if (response.statusCode == 200) {
-      // Assumes the API returns a list of orders, e.g., { "orders": [...] }
       return responseBody['orders'] as List<dynamic>;
     } else {
       throw Exception(responseBody['error'] ?? 'Failed to load orders.');
@@ -354,8 +344,6 @@ class ApiService {
   }
 
   Future<List<dynamic>> getCustomerOrdersHistory(String customerId) async {
-    // This endpoint calls the SAME Lambda but WITH the query parameter
-    // to get the "history" formatted data.
     final uri = Uri.parse('$_baseUrl/orders/$customerId').replace(
       queryParameters: {'format': 'history'},
     );
@@ -383,7 +371,7 @@ class ApiService {
       final uri = Uri.parse('$_baseUrl/rewards/history').replace(
         queryParameters: {
           'shp_user_id': shpUserId,
-          'limit': '100' // Fetch enough history to cover recent orders
+          'limit': '100'
         },
       );
 
@@ -405,7 +393,6 @@ class ApiService {
     double latitude,
     double longitude,
   ) async {
-    // Note: This calls _baseUrl, which points to your shelf-service lambda
     final uri = Uri.parse('$_awsProdBase/shelf');
     final payload = {
       'action': 'find_nearby_shelves',
@@ -441,10 +428,9 @@ class ApiService {
     double latitude,
     double longitude,
   ) async {
-    // It calls the same /shelf endpoint
     final uri = Uri.parse('$_awsProdBase/shelf');
     final payload = {
-      'action': 'search_shelves_by_text', // But with a different action
+      'action': 'search_shelves_by_text',
       'params': {
         'query': query,
         'latitude': latitude,

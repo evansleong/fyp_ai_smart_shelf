@@ -36,18 +36,13 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
     // When the user taps the search bar, make sure results are visible
     _searchFocusNode.addListener(() {
       if (_searchFocusNode.hasFocus) {
-        setState(() {
-          // This just rebuilds to make sure the list is visible
-          // The auto-detect has already been run by initState
-        });
+        setState(() {});
       }
     });
 
     // Listen to text changes to update clear button visibility
     _searchController.addListener(() {
-      setState(() {
-        // Rebuild to show/hide clear button
-      });
+      setState(() {});
     });
   }
 
@@ -146,9 +141,6 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
   Future<void> _runTextSearch(String query) async {
     if (query.isEmpty) return;
 
-    // Note: We already set _isLoading = true in _onSearchChanged,
-    // so we don't need to do it here.
-
     try {
       final Position position = await _locationService.getCurrentLocation();
 
@@ -177,8 +169,6 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
         setState(() {
           // --- CHANGE 3: Turn OFF loading on error ---
           _isLoading = false;
-          // Optional: You can choose to show the error or keep the old list
-          // _errorMessage = e.toString();
         });
       }
     }
@@ -268,7 +258,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         ),
       ),
     );
@@ -411,7 +402,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6366F1),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -561,7 +553,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
             itemCount: _searchResults!.length,
             itemBuilder: (context, index) {
               final shelf = _searchResults![index];
-              return _buildShelfCard(shelf, index == _searchResults!.length - 1);
+              return _buildShelfCard(
+                  shelf, index == _searchResults!.length - 1);
             },
           ),
         ),
@@ -574,10 +567,11 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
     final shelfName = shelf['shelf_name']?.toString() ?? 'Unnamed Shelf';
     final shopName = shelf['shop_name']?.toString() ?? 'Unknown Shop';
     final distance = shelf['distance_km']?.toString() ?? '??';
-    final location = shelf['shelf_location']?.toString() ?? 'Location not available';
+    final location =
+        shelf['shelf_location']?.toString() ?? 'Location not available';
     final halalStatus = shelf['halal_status']?.toString() ?? '';
     final isHalal = halalStatus == 'Halal';
-    
+
     double distanceValue = 0.0;
     try {
       distanceValue = double.parse(distance);
@@ -689,7 +683,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
                       if (halalStatus.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: isHalal
                                 ? const Color(0xFF10B981).withOpacity(0.1)
@@ -735,7 +730,8 @@ class _SearchShelvesScreenState extends State<SearchShelvesScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: distanceValue < 1.0
                             ? const Color(0xFF10B981).withOpacity(0.1)

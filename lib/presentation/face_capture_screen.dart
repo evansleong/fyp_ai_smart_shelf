@@ -4,7 +4,6 @@ import '../core/services/api_service.dart';
 import 'dart:io';
 
 class FaceCaptureScreen extends StatefulWidget {
-  // This screen receives the user details from Step 1
   final Map<String, dynamic> userDetails;
 
   const FaceCaptureScreen({
@@ -26,7 +25,6 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
   String? _faceImageKey;
   bool _isUploadingFace = false;
 
-  // --- (This screen has no text controllers) ---
 
   @override
   void dispose() {
@@ -178,7 +176,7 @@ class _FaceCaptureScreenState extends State<FaceCaptureScreen> {
               ),
               const SizedBox(height: 48),
 
-              // --- Face Preview (Optional but nice) ---
+              // --- Face Preview ---
               if (_faceImagePath != null)
                 CircleAvatar(
                   radius: 80,

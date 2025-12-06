@@ -21,7 +21,6 @@ class YoloDetectorService {
   late Interpreter _interpreter;
   late List<String> _labels;
 
-  // This must match the size you trained with (640)
   final int _inputSize = 640;
   final String _modelPath = 'assets/models/mykad_detector.tflite';
   final String _labelPath = 'assets/models/labels.txt';
@@ -32,7 +31,6 @@ class YoloDetectorService {
       final labelsData = await rootBundle.loadString(_labelPath);
       _labels = labelsData.split('\n').map((e) => e.trim()).toList();
 
-      // Print model info for debugging
       debugPrint('YOLO model loaded successfully');
       debugPrint('Input shape: ${_interpreter.getInputTensor(0).shape}');
       debugPrint('Output shape: ${_interpreter.getOutputTensor(0).shape}');

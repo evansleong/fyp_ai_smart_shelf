@@ -4,7 +4,7 @@ import '../core/services/api_service.dart';
 
 class TransactionDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> transaction;
-  final String? shpUserId; // Optional: needed to fetch full order details
+  final String? shpUserId;
 
   const TransactionDetailsScreen({
     super.key,
@@ -13,7 +13,8 @@ class TransactionDetailsScreen extends StatefulWidget {
   });
 
   @override
-  State<TransactionDetailsScreen> createState() => _TransactionDetailsScreenState();
+  State<TransactionDetailsScreen> createState() =>
+      _TransactionDetailsScreenState();
 }
 
 class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
@@ -23,7 +24,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    // Try to fetch full order details if shpUserId is provided
     if (widget.shpUserId != null) {
       _fetchFullOrderDetails();
     }
@@ -31,27 +31,27 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
 
   Future<void> _fetchFullOrderDetails() async {
     try {
-      // Fetch full orders (not history format)
       final fullOrders = await _apiService.getCustomerOrders(widget.shpUserId!);
-      
-      // Match transaction with full order by date + amount
       final transactionDate = widget.transaction['date']?.toString() ?? '';
       final transactionAmount = widget.transaction['amount']?.toString() ?? '';
-      
+
       if (transactionDate.isNotEmpty && transactionAmount.isNotEmpty) {
-        final normalizedAmount = double.tryParse(transactionAmount)?.toStringAsFixed(2) ?? transactionAmount;
-        
+        final normalizedAmount =
+            double.tryParse(transactionAmount)?.toStringAsFixed(2) ??
+                transactionAmount;
+
         for (var order in fullOrders) {
-          final orderId = order['order_id']?.toString() ?? order['orderId']?.toString();
+          final orderId =
+              order['order_id']?.toString() ?? order['orderId']?.toString();
           if (orderId == null) continue;
-          
+
           final createdAt = order['created_at']?.toString() ?? '';
           if (createdAt.isEmpty) continue;
-          
+
           try {
             final orderDateTime = DateTime.parse(createdAt);
             final orderDate = orderDateTime.toIso8601String().split('T')[0];
-            
+
             final summary = order['summary'];
             double? orderTotalPrice;
             if (summary != null && summary['total_price'] != null) {
@@ -64,11 +64,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                 orderTotalPrice = double.tryParse(tp);
               }
             }
-            
-            if (orderDate == transactionDate && 
-                orderTotalPrice != null && 
+
+            if (orderDate == transactionDate &&
+                orderTotalPrice != null &&
                 orderTotalPrice.toStringAsFixed(2) == normalizedAmount) {
-              // Found matching order!
               if (mounted) {
                 setState(() {
                   _fullOrder = order;
@@ -77,7 +76,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               return;
             }
           } catch (e) {
-            // Skip if parsing fails
             continue;
           }
         }
@@ -90,34 +88,28 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final transaction = widget.transaction;
-    final shopName = transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
+    final shopName =
+        transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
     final amount = _parseAmount(transaction['amount']);
     final shopAddress = transaction['shop_address'] ?? 'Unknown Location';
-    final shelfLocation = transaction['shelf'] ?? transaction['shelf_location'] ?? 'Unknown Shelf';
+    final shelfLocation = transaction['shelf'] ??
+        transaction['shelf_location'] ??
+        'Unknown Shelf';
     final date = transaction['date'] ?? '';
     final time = transaction['time'] ?? '';
     final paymentMethod = transaction['payment_method'] ?? 'Card';
-    
-    // Use full order if available, otherwise use transaction from history
     final dataSource = _fullOrder ?? widget.transaction;
-    
-    // Parse items from the dataSource (which has full item details if _fullOrder is available)
     final items = _parseItems(dataSource);
-    
-    // Parse summary for price breakdown
     final summary = dataSource['summary'];
-    
     final parsedSubtotal = _parseSummaryValue(summary, 'subtotal');
     final parsedDiscount = _parseSummaryValue(summary, 'discount');
     final parsedTotalPrice = _parseSummaryValue(summary, 'total_price');
-    
     final subtotal = parsedSubtotal ?? _calculateTotal(items, amount);
     final discount = parsedDiscount ?? 0.0;
     final totalPrice = parsedTotalPrice ?? _calculateTotal(items, amount);
-    
-    final totalAmount = totalPrice; // Use total_price from summary as the final amount
+    final totalAmount =
+        totalPrice; // Use total_price from summary as the final amount
     final isStolen = paymentMethod.toLowerCase() == 'none';
-
     String formattedDate = '';
     String formattedTime = '';
     if (date.isNotEmpty && time.isNotEmpty) {
@@ -152,15 +144,16 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Warning banner for stolen items
             if (isStolen) _buildPaymentWarningBanner(totalAmount),
             if (isStolen) const SizedBox(height: 16),
-            _buildHeaderCard(shopName, totalAmount, formattedDate, formattedTime, subtotal, discount, isStolen),
+            _buildHeaderCard(shopName, totalAmount, formattedDate,
+                formattedTime, subtotal, discount, isStolen),
             const SizedBox(height: 16),
             if (items.isNotEmpty) _buildItemsSection(items),
             if (items.isEmpty) _buildSingleItemCard(transaction),
             const SizedBox(height: 16),
-            _buildInfoCard(shopAddress, shelfLocation, formattedDate, formattedTime, paymentMethod),
+            _buildInfoCard(shopAddress, shelfLocation, formattedDate,
+                formattedTime, paymentMethod),
             const SizedBox(height: 24),
           ],
         ),
@@ -228,7 +221,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                 ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(10),
@@ -268,7 +262,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     );
   }
 
-  Widget _buildHeaderCard(String shopName, double totalAmount, String date, String time, double subtotal, double discount, bool isStolen) {
+  Widget _buildHeaderCard(String shopName, double totalAmount, String date,
+      String time, double subtotal, double discount, bool isStolen) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -351,9 +346,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isStolen
-                    ? Colors.red.shade50
-                    : const Color(0xFFF1F5F9),
+                color: isStolen ? Colors.red.shade50 : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(12),
                 border: isStolen
                     ? Border.all(color: Colors.red.shade200, width: 1)
@@ -397,13 +390,13 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                         ),
                       ),
                       Text(
-                        discount > 0 
+                        discount > 0
                             ? '-RM ${discount.toStringAsFixed(2)}'
                             : 'RM ${discount.toStringAsFixed(2)}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: discount > 0 
+                          color: discount > 0
                               ? const Color(0xFF10B981)
                               : const Color(0xFF64748B),
                         ),
@@ -530,7 +523,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                             return Center(
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                value: loadingProgress.expectedTotalBytes != null
+                                value: loadingProgress.expectedTotalBytes !=
+                                        null
                                     ? loadingProgress.cumulativeBytesLoaded /
                                         loadingProgress.expectedTotalBytes!
                                     : null,
@@ -586,10 +580,11 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
   }
 
   Widget _buildSingleItemCard(Map<String, dynamic> transaction) {
-    final details = transaction['details'] ?? transaction['shop_name'] ?? 'Purchase';
+    final details =
+        transaction['details'] ?? transaction['shop_name'] ?? 'Purchase';
     final amount = _parseAmount(transaction['amount']);
     final imageUrl = transaction['imageUrl'] as String?;
-    
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -672,7 +667,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     );
   }
 
-  Widget _buildInfoCard(String shopAddress, String shelfLocation, String date, String time, String paymentMethod) {
+  Widget _buildInfoCard(String shopAddress, String shelfLocation, String date,
+      String time, String paymentMethod) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -688,7 +684,8 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       ),
       child: Column(
         children: [
-          _buildInfoRow(Icons.location_on_outlined, 'Shelf Location', shelfLocation),
+          _buildInfoRow(
+              Icons.location_on_outlined, 'Shelf Location', shelfLocation),
           const Divider(height: 1, indent: 80),
           _buildInfoRow(Icons.store_outlined, 'Shop Location', shopAddress),
           const Divider(height: 1, indent: 80),
@@ -696,10 +693,16 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             _buildInfoRow(
               Icons.calendar_today_outlined,
               'Date & Time',
-              date.isNotEmpty && time.isNotEmpty ? '$date at $time' : date.isNotEmpty ? date : time,
+              date.isNotEmpty && time.isNotEmpty
+                  ? '$date at $time'
+                  : date.isNotEmpty
+                      ? date
+                      : time,
             ),
-          if (date.isNotEmpty || time.isNotEmpty) const Divider(height: 1, indent: 80),
-          _buildInfoRow(Icons.payment_outlined, 'Payment Method', paymentMethod),
+          if (date.isNotEmpty || time.isNotEmpty)
+            const Divider(height: 1, indent: 80),
+          _buildInfoRow(
+              Icons.payment_outlined, 'Payment Method', paymentMethod),
         ],
       ),
     );
@@ -762,8 +765,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
 
   List<TransactionItem> _parseItems(Map<String, dynamic> transaction) {
     final items = <TransactionItem>[];
-    
-    // Get shop_id for constructing image URLs - handle DynamoDB format
     String shopId = '';
     if (transaction['shop_id'] != null) {
       final shopIdValue = transaction['shop_id'];
@@ -773,12 +774,12 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         shopId = shopIdValue?.toString() ?? '';
       }
     }
-    
+
     // First, try to parse from items array
     if (transaction['items'] != null) {
       dynamic itemsData = transaction['items'];
       List<dynamic> itemsList = [];
-      
+
       // Handle DynamoDB format: items might be a List or wrapped in DynamoDB format
       if (itemsData is List) {
         itemsList = itemsData;
@@ -786,10 +787,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         // DynamoDB List format: { "L": [...] }
         itemsList = itemsData['L'] as List? ?? [];
       }
-      
+
       for (var item in itemsList) {
         Map<String, dynamic>? itemMap;
-        
+
         // Handle DynamoDB Map format: { "M": { ... } }
         if (item is Map<String, dynamic>) {
           if (item.containsKey('M')) {
@@ -798,7 +799,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             itemMap = item;
           }
         }
-        
+
         if (itemMap != null) {
           // Extract product_id first (needed for image URL construction)
           String? productId;
@@ -810,7 +811,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               productId = productIdValue?.toString();
             }
           }
-          
+
           // Extract name - handle DynamoDB String format
           String name = 'Unknown Item';
           if (itemMap['name'] != null) {
@@ -828,7 +829,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               name = nameValue?.toString() ?? 'Unknown Item';
             }
           }
-          
+
           // Extract price - handle multiple formats
           double price = 0.0;
           if (itemMap['price'] != null) {
@@ -838,14 +839,15 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
           } else if (itemMap['unit_price_cents'] != null) {
             final centsValue = itemMap['unit_price_cents'];
             if (centsValue is Map && centsValue.containsKey('N')) {
-              final cents = double.tryParse(centsValue['N']?.toString() ?? '0') ?? 0.0;
+              final cents =
+                  double.tryParse(centsValue['N']?.toString() ?? '0') ?? 0.0;
               price = cents / 100.0;
             } else {
               final cents = (centsValue as num?)?.toDouble();
               price = cents != null ? cents / 100.0 : 0.0;
             }
           }
-          
+
           // Extract quantity - handle DynamoDB Number format
           int quantity = 1;
           if (itemMap['quantity'] != null) {
@@ -856,10 +858,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               quantity = (qtyValue as num?)?.toInt() ?? 1;
             }
           }
-          
+
           // Extract or construct imageUrl
           String? imageUrl;
-          
+
           // First, try to get from item fields
           if (itemMap['imageUrl'] != null) {
             final imgValue = itemMap['imageUrl'];
@@ -883,13 +885,17 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               imageUrl = imgValue?.toString();
             }
           }
-          
-          // If no imageUrl found and we have product_id and shop_id, construct it
-          if (imageUrl == null && productId != null && productId.isNotEmpty && shopId.isNotEmpty) {
+
+          // If no imageUrl found and have product_id and shop_id, construct it
+          if (imageUrl == null &&
+              productId != null &&
+              productId.isNotEmpty &&
+              shopId.isNotEmpty) {
             // Construct S3 URL: https://smartshelf-data.s3.ap-southeast-1.amazonaws.com/shops/{shop_id}/products/{product_id}/image_1.jpg
-            imageUrl = 'https://smartshelf-data.s3.ap-southeast-1.amazonaws.com/shops/$shopId/products/$productId/image_1.jpg';
+            imageUrl =
+                'https://smartshelf-data.s3.ap-southeast-1.amazonaws.com/shops/$shopId/products/$productId/image_1.jpg';
           }
-          
+
           items.add(TransactionItem(
             name: name,
             price: price,
@@ -899,22 +905,19 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         }
       }
     }
-    
+
     // If no items found in array, try to parse from details field (e.g., "anmuxi(1), chapi(1)")
     if (items.isEmpty) {
       final details = transaction['details']?.toString() ?? '';
       if (details.isNotEmpty && details.contains('(')) {
-        // Split by comma and parse each item
         final itemStrings = details.split(',');
         for (var itemStr in itemStrings) {
           itemStr = itemStr.trim();
-          // Match pattern like "anmuxi(1)" or "chapi(1)"
           final regex = RegExp(r'^(.+?)\s*\((\d+)\)$');
           final match = regex.firstMatch(itemStr);
           if (match != null) {
             final name = match.group(1)?.trim() ?? 'Unknown Item';
             final quantity = int.tryParse(match.group(2) ?? '1') ?? 1;
-            // For parsed items from details, we don't have price info, so use 0
             items.add(TransactionItem(
               name: name,
               price: 0.0,
@@ -925,7 +928,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         }
       }
     }
-    
+
     return items;
   }
 
@@ -934,29 +937,24 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     return items.fold(0.0, (sum, item) => sum + (item.price * item.quantity));
   }
 
-  /// Parses a value from the summary field, handling both simple format and DynamoDB format
   double? _parseSummaryValue(Map<String, dynamic>? summary, String key) {
     if (summary == null) return null;
-    
+
     final value = summary[key];
     if (value == null) return null;
-    
-    // Handle DynamoDB format: { "N" : "3.64" } or { "N" : "0.3" }
     if (value is Map<String, dynamic>) {
       if (value.containsKey('N')) {
         final numStr = value['N']?.toString() ?? '';
         final parsed = double.tryParse(numStr);
         if (parsed != null) return parsed;
       }
-      // Also handle string format: { "S" : "3.64" }
       if (value.containsKey('S')) {
         final numStr = value['S']?.toString() ?? '';
         final parsed = double.tryParse(numStr);
         if (parsed != null) return parsed;
       }
     }
-    
-    // Handle simple format: 3.64 or "3.64"
+
     if (value is num) {
       return value.toDouble();
     }
@@ -964,7 +962,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       final parsed = double.tryParse(value);
       if (parsed != null) return parsed;
     }
-    
+
     return null;
   }
 }

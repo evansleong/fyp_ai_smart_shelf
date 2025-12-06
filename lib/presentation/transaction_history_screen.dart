@@ -20,17 +20,11 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   final ApiService _apiService = ApiService();
   bool _isLoading = true;
   String? _errorMessage;
-
   List<dynamic> _allTransactions = [];
   List<dynamic> _filteredTransactions = [];
-
-  // --- NEW: Map to store points from database table ---
-  // Key: order_id, Value: points_earned
   Map<String, int> _pointsMap = {};
-  Map<String, int> _pointsByOrderId = {}; // Direct order_id -> points mapping
-
-  // Filter state
-  String? _selectedPaymentType; // Changed to single selection
+  Map<String, int> _pointsByOrderId = {};
+  String? _selectedPaymentType;
   DateTime? _startDate;
   DateTime? _endDate;
   String? _selectedDateRangePreset;
@@ -67,12 +61,9 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       print("DEBUG: Points History Found: ${pointsHistory.length}");
 
       // 2. Build the Points Map from the Table Data
-      // Since history format doesn't include order_id, we'll create a composite key
-      // using date + time + amount to match transactions
-      final Map<String, int> pointsByOrderId = {}; // Key: order_id, Value: points
+      final Map<String, int> pointsByOrderId = {};
 
       for (var p in pointsHistory) {
-        // Handle both String and int formats safely
         final rawPoints = p['points_earned'];
         int pts = 0;
 
@@ -81,32 +72,25 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         } else if (rawPoints is String) {
           pts = int.tryParse(rawPoints) ?? 0;
         } else if (rawPoints is Map && rawPoints.containsKey('N')) {
-          // Handle { "N": "3" } format
           pts = int.tryParse(rawPoints['N'].toString()) ?? 0;
         }
 
-        // Get Order ID safely
         String? oId = p['order_id']?.toString();
 
         if (oId != null && pts > 0) {
           pointsByOrderId[oId] = pts;
-          
-          // Try to find matching transaction by order_id to build composite key
-          // We'll need to fetch the full order details or match by other means
-          // For now, store by order_id and we'll try to match in the card builder
         }
       }
-      
-      // Store both maps for lookup
+
       _pointsByOrderId = pointsByOrderId;
 
-      print("DEBUG: Final Points Map Created with ${pointsByOrderId.length} entries.");
-      // Print keys to verify they match order IDs
+      print(
+          "DEBUG: Final Points Map Created with ${pointsByOrderId.length} entries.");
       if (pointsByOrderId.isNotEmpty) {
-        print("DEBUG: Map Keys (first 5): ${pointsByOrderId.keys.take(5).toList()}");
+        print(
+            "DEBUG: Map Keys (first 5): ${pointsByOrderId.keys.take(5).toList()}");
       }
-      
-      // Debug: Print all fields from first transaction to find order ID
+
       if (orders.isNotEmpty) {
         print("DEBUG: All fields in first transaction:");
         final firstTransaction = orders[0];
@@ -117,23 +101,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       }
 
       // 3. Try to match orders with points by fetching full order details
-      // Since history format doesn't have order_id, we need to get it from the regular orders endpoint
       try {
-        // Note: getCustomerOrders might need customer_id instead of shp_user_id
-        // But let's try with shp_user_id first
-        final fullOrders = await _apiService.getCustomerOrders(widget.shpUserId);
-        
+        final fullOrders =
+            await _apiService.getCustomerOrders(widget.shpUserId);
+
         print("DEBUG: Full orders fetched: ${fullOrders.length}");
         if (fullOrders.isNotEmpty) {
           print("DEBUG: First full order keys: ${fullOrders[0].keys.toList()}");
         }
-        
-        // Build a map of composite key (date+amount) -> order_id (simpler, more reliable)
+
         final Map<String, String> compositeKeyToOrderId = {};
         for (var order in fullOrders) {
-          final orderId = order['order_id']?.toString() ?? order['orderId']?.toString();
+          final orderId =
+              order['order_id']?.toString() ?? order['orderId']?.toString();
           if (orderId != null) {
-            // Create composite key from order data
             final createdAt = order['created_at']?.toString() ?? '';
             final summary = order['summary'];
             double? totalPrice;
@@ -147,68 +128,69 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 totalPrice = double.tryParse(tp);
               }
             }
-            
+
             if (createdAt.isNotEmpty && totalPrice != null) {
               try {
                 final dateTime = DateTime.parse(createdAt);
-                final dateStr = dateTime.toIso8601String().split('T')[0]; // YYYY-MM-DD
+                final dateStr = dateTime.toIso8601String().split('T')[0];
                 final amountStr = totalPrice.toStringAsFixed(2);
-                
-                // Create composite key using date + amount (more reliable than including time)
                 final compositeKey = '$dateStr|$amountStr';
                 compositeKeyToOrderId[compositeKey] = orderId;
-                print("DEBUG: Mapped key '$compositeKey' -> order_id '$orderId'");
+                print(
+                    "DEBUG: Mapped key '$compositeKey' -> order_id '$orderId'");
               } catch (e) {
-                print("DEBUG: Error parsing order date: $e, createdAt: $createdAt");
+                print(
+                    "DEBUG: Error parsing order date: $e, createdAt: $createdAt");
               }
             }
           }
         }
-        
+
         print("DEBUG: Composite key map size: ${compositeKeyToOrderId.length}");
-        
-        // Now build the final points map using composite keys from transactions
+
         final Map<String, int> finalPointsMap = {};
         int matchedCount = 0;
         for (var transaction in orders) {
           final dateStr = transaction['date']?.toString() ?? '';
           final amountStr = transaction['amount']?.toString() ?? '';
-          
+
           if (dateStr.isNotEmpty && amountStr.isNotEmpty) {
             try {
-              // Use date + amount only (simpler matching)
-              final normalizedDate = dateStr; // Already in YYYY-MM-DD format
-              final normalizedAmount = double.tryParse(amountStr)?.toStringAsFixed(2) ?? amountStr;
-              
+              final normalizedDate = dateStr;
+              final normalizedAmount =
+                  double.tryParse(amountStr)?.toStringAsFixed(2) ?? amountStr;
+
               final compositeKey = '$normalizedDate|$normalizedAmount';
               final orderId = compositeKeyToOrderId[compositeKey];
-              
+
               if (orderId != null && _pointsByOrderId.containsKey(orderId)) {
                 finalPointsMap[compositeKey] = _pointsByOrderId[orderId]!;
                 matchedCount++;
-                print("DEBUG: Matched transaction '$compositeKey' -> order_id '$orderId' -> ${_pointsByOrderId[orderId]} points");
+                print(
+                    "DEBUG: Matched transaction '$compositeKey' -> order_id '$orderId' -> ${_pointsByOrderId[orderId]} points");
               } else {
-                print("DEBUG: No match for transaction '$compositeKey' (orderId: $orderId, hasPoints: ${orderId != null && _pointsByOrderId.containsKey(orderId)})");
+                print(
+                    "DEBUG: No match for transaction '$compositeKey' (orderId: $orderId, hasPoints: ${orderId != null && _pointsByOrderId.containsKey(orderId)})");
               }
             } catch (e) {
               print("DEBUG: Error processing transaction: $e");
             }
           }
         }
-        
-        print("DEBUG: Final points map size: ${finalPointsMap.length}, Matched: $matchedCount");
-        
+
+        print(
+            "DEBUG: Final points map size: ${finalPointsMap.length}, Matched: $matchedCount");
+
         if (mounted) {
           setState(() {
             _allTransactions = orders;
-            _pointsMap = finalPointsMap; // Store the composite key map
-            _filterTransactions(); // Initial filter
+            _pointsMap = finalPointsMap;
+            _filterTransactions();
             _isLoading = false;
           });
         }
       } catch (e) {
         print("DEBUG: Error matching orders with points: $e");
-        // Fallback: just use empty map
         if (mounted) {
           setState(() {
             _allTransactions = orders;
@@ -227,7 +209,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         });
       }
     }
-  } 
+  }
 
   void _filterTransactions() {
     _availablePaymentTypes = _allTransactions
@@ -449,17 +431,17 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     }
 
     // 2. GET REAL POINTS FROM DATABASE MAP
-    // Since history format doesn't have order_id, use composite key (date+amount)
     final String dateStr = transaction['date']?.toString() ?? '';
     final String amountStr = transaction['amount']?.toString() ?? '';
-    
+
     int pointsEarned = 0;
     if (dateStr.isNotEmpty && amountStr.isNotEmpty) {
       try {
         // Use date + amount only (simpler matching)
         final normalizedDate = dateStr; // Already in YYYY-MM-DD format
-        final normalizedAmount = double.tryParse(amountStr)?.toStringAsFixed(2) ?? amountStr;
-        
+        final normalizedAmount =
+            double.tryParse(amountStr)?.toStringAsFixed(2) ?? amountStr;
+
         final compositeKey = '$normalizedDate|$normalizedAmount';
         pointsEarned = _pointsMap[compositeKey] ?? 0;
       } catch (e) {
@@ -472,7 +454,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     final isStolen = paymentMethod.toLowerCase() == 'none';
     final shopName =
         transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
-    
+
     // Date formatting for display
     final String displayDateStr = transaction['date']?.toString() ?? '';
     final String displayTimeStr = transaction['time']?.toString() ?? '';
@@ -483,7 +465,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
         final dateTimeFormat = DateFormat('dd MMM yyyy');
         final timeFormat = DateFormat('hh:mm a');
-        final DateTime parsedDateTime = inputFormat.parse('$displayDateStr $displayTimeStr');
+        final DateTime parsedDateTime =
+            inputFormat.parse('$displayDateStr $displayTimeStr');
         displayDate = dateTimeFormat.format(parsedDateTime);
         displayTime = timeFormat.format(parsedDateTime);
       } catch (_) {
@@ -515,8 +498,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) =>
-                      TransactionDetailsScreen(
+                  builder: (_) => TransactionDetailsScreen(
                         transaction: transaction,
                         shpUserId: widget.shpUserId,
                       )),
@@ -581,29 +563,27 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    // Points earned badge - displayed ABOVE the amount
                     if (pointsEarned > 0) ...[
                       Text(
                         '+$pointsEarned pts',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
-                          color: Color(0xFF10B981), // Green color as originally requested
+                          color: Color(0xFF10B981),
                         ),
                       ),
                       const SizedBox(height: 2),
                     ],
-                    
-                    // Amount - blue if paid with points, red otherwise
+
                     Text(displayAmount,
                         style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: isStolen
                                 ? Colors.red.shade700
-                                : paymentMethod.toLowerCase() == 'points' 
-                                    ? const Color(0xFF2563EB) // Blue for points
-                                    : const Color(0xFFDC2626))), // Red for other methods
+                                : paymentMethod.toLowerCase() == 'points'
+                                    ? const Color(0xFF2563EB)
+                                    : const Color(0xFFDC2626))),
 
                     // Payment method badge (hide for stolen items, show warning instead)
                     const SizedBox(height: 2),
@@ -654,7 +634,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  // ... (Keep your Bottom Sheet methods and classes below: _showDateRangeBottomSheet, etc.) ...
   void _showDateRangeBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -670,7 +649,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
             _endDate = end;
             _selectedDateRangePreset = preset;
           });
-          _filterTransactions(); // Apply filter immediately
+          _filterTransactions();
         },
       ),
     );
@@ -688,14 +667,13 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           setState(() {
             _selectedPaymentType = selected;
           });
-          _filterTransactions(); // Apply filter immediately
+          _filterTransactions();
         },
       ),
     );
   }
 }
 
-// ... Paste your existing _DateRangeBottomSheet and _FilterBottomSheet classes here ...
 class _DateRangeBottomSheet extends StatefulWidget {
   final DateTime? startDate;
   final DateTime? endDate;
@@ -772,7 +750,7 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
     if (picked != null) {
       setState(() {
         _tempStartDate = DateTime(picked.year, picked.month, picked.day);
-        _tempPreset = null; // Custom range
+        _tempPreset = null;
       });
     }
   }
@@ -788,7 +766,7 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
       setState(() {
         _tempEndDate =
             DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-        _tempPreset = null; // Custom range
+        _tempPreset = null;
       });
     }
   }
@@ -856,7 +834,6 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Preset options in grid layout
                 Wrap(
                   spacing: 12,
                   runSpacing: 12,
@@ -869,7 +846,6 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                // Custom date range
                 const Text(
                   'Custom date range',
                   style: TextStyle(
@@ -1017,8 +993,7 @@ class _DateRangeBottomSheetState extends State<_DateRangeBottomSheet> {
       onTap: () => _selectPreset(preset),
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: (MediaQuery.of(context).size.width - 64) /
-            2, // Fixed width: (screen width - padding) / 2
+        width: (MediaQuery.of(context).size.width - 64) / 2,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected
@@ -1071,7 +1046,6 @@ class _FilterBottomSheetState extends State<_FilterBottomSheet> {
 
   void _selectPaymentType(String type) {
     setState(() {
-      // If clicking the same type, deselect it (toggle off)
       if (_tempSelectedType == type) {
         _tempSelectedType = null;
       } else {

@@ -5,8 +5,7 @@ import 'shelf_verification_screen.dart';
 
 class ShelfDetailsScreen extends StatefulWidget {
   final String shelfId;
-  final Map<String, dynamic>? shelfData; // Optional initial data from search
-
+  final Map<String, dynamic>? shelfData;
   const ShelfDetailsScreen({
     super.key,
     required this.shelfId,
@@ -26,11 +25,9 @@ class _ShelfDetailsScreenState extends State<ShelfDetailsScreen> {
   @override
   void initState() {
     super.initState();
-    // Use initial data if available, otherwise fetch
     if (widget.shelfData != null) {
       _shelfDetails = widget.shelfData;
       _isLoading = false;
-      // Still fetch full details in background
       _fetchShelfDetails();
     } else {
       _fetchShelfDetails();

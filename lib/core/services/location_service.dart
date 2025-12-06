@@ -1,5 +1,5 @@
 import 'package:geolocator/geolocator.dart';
-import 'dart:async'; // Import for TimeoutException
+import 'dart:async'; 
 
 /// A service to handle getting the user's GPS location.
 class LocationService {
@@ -28,10 +28,6 @@ class LocationService {
           'Location permissions are permanently denied, we cannot request permissions.');
     }
 
-    // --- START MODIFICATION ---
-    // We reach here, permissions are granted.
-    // Try to get a position with a 10-second timeout.
-    // Use 'medium' accuracy for a faster lock, especially indoors.
     try {
       return await Geolocator.getCurrentPosition(
         // Use medium accuracy for a much faster result
@@ -52,6 +48,5 @@ class LocationService {
       // Catch other potential errors (e.g., service turned off mid-request)
       return Future.error('Failed to get location: $e');
     }
-    // --- END MODIFICATION ---
   }
 }

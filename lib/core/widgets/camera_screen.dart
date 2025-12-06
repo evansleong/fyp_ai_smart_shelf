@@ -7,9 +7,9 @@ import 'package:camera/camera.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:screen_brightness/screen_brightness.dart'; // Ensure this is in pubspec.yaml
+import 'package:screen_brightness/screen_brightness.dart';
 
-import '../services/yolo_detector_service.dart'; // Ensure this path is correct
+import '../services/yolo_detector_service.dart'; 
 
 // --- ENUMS ---
 enum CameraScanMode {
@@ -385,7 +385,6 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
-  // This is now ONLY for OCR mode
   Future<void> _onCapturePressed() async {
     if (widget.scanMode != CameraScanMode.ocr) return;
 
@@ -421,64 +420,6 @@ class _CameraScreenState extends State<CameraScreen> {
       final BoundingBox? detectedBox = await _detector!.detectCard(image.path);
 
       if (!mounted) return;
-      // Note: The user's code had Navigator.of(context).pop(image.path); here which seems wrong (it pops the screen immediately?),
-      // but looking at the diff:
-      // Navigator.of(context).pop(image.path);
-      // This line seems to be in the diff but it might be a mistake in the user's provided code or I am misreading the context.
-      // Wait, the diff says:
-      // +      if (!mounted) return;
-      // +      Navigator.of(context).pop(image.path);
-      //
-      // If I include this, it will close the camera screen immediately with the full image path.
-      // But then it continues to process?
-      // "3. Check if a card was found"
-      // If it pops, the context is gone?
-      //
-      // Actually, looking at the diff again:
-      // The user's code:
-      //       if (!mounted) return;
-      //       Navigator.of(context).pop(image.path);
-      //
-      //       // 3. Check if a card was found
-      //       if (detectedBox != null) { ... }
-      //
-      // If it pops, the widget is disposed?
-      // If the widget is disposed, `mounted` becomes false.
-      // But the code continues executing.
-      // However, `Navigator.of(context).pop` might be what they want if they just want to return the image?
-      // BUT, if they return the image, why do they crop it afterwards?
-      //
-      // "if (croppedImagePath != null) { ... Navigator.of(context).pop(croppedImagePath); }"
-      //
-      // It seems the user's code might have a bug where it pops twice?
-      // Or maybe the first pop is a mistake in their copy-paste?
-      //
-      // Let's look at the "old version" logic carefully.
-      // If I pop immediately, the user gets the full image.
-      // If I wait, I crop.
-      //
-      // I will COMMENT OUT the first pop and assume it was a mistake or debug line,
-      // UNLESS the user explicitly wants it.
-      // But the user said "this is old version... which is still working".
-      // If it was working, maybe that line wasn't there or I'm misinterpreting.
-      //
-      // Wait, the diff shows:
-      // +      if (!mounted) return;
-      // +      Navigator.of(context).pop(image.path);
-      //
-      // If I put it in, the camera screen closes.
-      // Then `detectedBox` check happens.
-      // Then `cropImage` happens.
-      // Then `Navigator.of(context).pop(croppedImagePath)` happens.
-      // You can't pop twice.
-      //
-      // I will assume the first pop is WRONG and remove it, but keep the rest of the logic.
-      // The user might have pasted a "debug" version where they just returned the image.
-      //
-      // actually, let's look at the diff context.
-      // It seems to be replacing the previous logic.
-
-      // I will implement the logic WITHOUT the early pop, as that makes no sense for a "working" OCR flow.
 
       // 3. Check if a card was found
       if (detectedBox != null) {
@@ -999,7 +940,6 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 }
 
-// 🎨 --- UPDATED OVERLAY PAINTER (Soft Box Effect) ---
 class OverlayPainter extends CustomPainter {
   final Size cutoutSize;
   final Color borderColor;

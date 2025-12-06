@@ -84,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         userProfileData: _userProfileData,
         isLoadingProfile: _isLoadingProfile,
         shpUserId: widget.shpUserId,
-        // customerId is null at first, will be updated by _loadUserProfile
         customerId: _userProfileData?['shp_user_id'],
       ),
       const SearchShelvesScreen(),
@@ -99,7 +98,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
         setState(() {
           _userProfileData = user;
           _isLoadingProfile = false;
-          // Rebuild _HomeScreenBody with the loaded customerId
           _pages[0] = _HomeScreenBody(
             key: _homeScreenBodyKey,
             userProfileData: _userProfileData,
@@ -113,7 +111,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
       if (mounted) {
         setState(() {
           _isLoadingProfile = false;
-          // Rebuild _HomeScreenBody even on error (customerId will be null)
           _pages[0] = _HomeScreenBody(
             key: _homeScreenBodyKey,
             userProfileData: _userProfileData,
@@ -358,7 +355,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   }
 }
 
-// --- HOME SCREEN BODY (NOW STATEFUL) ---
+// --- HOME SCREEN BODY ---
 class _HomeScreenBody extends StatefulWidget {
   final Map<String, dynamic>? userProfileData;
   final bool isLoadingProfile;
@@ -585,10 +582,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
       totalSpendAfterDiscount += orderTotalForDisplay;
     }
 
-      // Fallback: If subtotalSpend is 0, calculate from categorySpend
       if (subtotalSpend == 0.0 && categorySpend.isNotEmpty) {
         subtotalSpend = categorySpend.values.reduce((a, b) => a + b);
-        // If we don't have totalSpendAfterDiscount, use subtotalSpend
         if (totalSpendAfterDiscount == 0.0) {
           totalSpendAfterDiscount = subtotalSpend;
         }
@@ -874,7 +869,7 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
             ),
             const SizedBox(height: 28),
 
-            // Chart and Legend - Now dynamic
+            // Chart and Legend
             if (_isLoadingTransactions)
               const Center(
                 child: Padding(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-// ⚠️ IMPORT THIS TO FIX THE ERROR
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 class FaceLivenessWebView extends StatefulWidget {
@@ -13,7 +12,6 @@ class FaceLivenessWebView extends StatefulWidget {
 
 class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
   late final WebViewController _controller;
-  // REPLACE with your Vercel URL
   final String _bridgeUrl = "https://evansleong.github.io/liveness-bridge";
 
   @override
@@ -56,16 +54,11 @@ class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
       )
       ..loadRequest(Uri.parse('$_bridgeUrl?session_id=${widget.sessionId}'));
 
-    // 2. ⚠️ ANDROID SPECIFIC PERMISSIONS LOGIC ⚠️
-    // This fixes the "PlatformWebViewController" issue
     if (controller.platform is AndroidWebViewController) {
       // Create a typed variable
       final AndroidWebViewController androidController =
           controller.platform as AndroidWebViewController;
-
-      // Now we can call Android-specific methods
       androidController.setMediaPlaybackRequiresUserGesture(false);
-
       // Auto-grant camera permissions
       androidController.setOnPlatformPermissionRequest(
         (PlatformWebViewPermissionRequest request) {
@@ -82,21 +75,19 @@ class _FaceLivenessWebViewState extends State<FaceLivenessWebView> {
 
   Future<void> _clearCacheAndLoad(WebViewController controller) async {
     debugPrint("🧹 Clearing WebView Cache...");
-    
+
     // 1. Clear disk cache (images, css, etc.)
     await controller.clearCache();
-    
+
     // 2. Clear local storage (React state, temporary data)
     await controller.clearLocalStorage();
 
-    // 3. OPTIONAL: If your app uses Cookies, clear them too
-    // await WebViewCookieManager().clearCookies(); 
-
     debugPrint("✅ Cache Cleared. Loading URL...");
-    
-    // 4. Now load the page
+
+    // 3. Now load the page
     if (mounted) {
-      controller.loadRequest(Uri.parse('$_bridgeUrl?session_id=${widget.sessionId}'));
+      controller
+          .loadRequest(Uri.parse('$_bridgeUrl?session_id=${widget.sessionId}'));
     }
   }
 

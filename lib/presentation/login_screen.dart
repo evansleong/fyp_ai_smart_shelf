@@ -173,7 +173,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       // 1. Create Liveness Session
-      // Calls your Lambda to get a session ID from Tokyo
+      // Calls Lambda to get a session ID from Tokyo
       final String sessionId = await _apiService.createLivenessSession();
 
       if (!mounted) return;
@@ -190,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       // 3. Verify Result (Login)
-      // We pass 'LOGIN_APP' as a placeholder shelfId. 
+      // pass 'LOGIN_APP' as a placeholder shelfId. 
       // The backend defaults to action='login', so it won't trigger IoT.
       final user = await _apiService.verifyLiveness(
         sessionId: sessionId,

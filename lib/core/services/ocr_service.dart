@@ -31,7 +31,6 @@ class OcrService {
             continue;
         }
 
-        // --- NEW LOGIC: Detect Gender and Religion ---
         if (upperCaseLine.contains('PEREMPUAN')) {
           extractedGender = 'Female';
         } else if (upperCaseLine.contains('LELAKI')) {
@@ -41,10 +40,8 @@ class OcrService {
         if (upperCaseLine.contains('ISLAM')) {
           extractedReligion = 'Muslim';
         }
-        // --- END NEW LOGIC ---
 
         // Find the name (often in all caps)
-        // Let's refine this: A name usually doesn't have address keywords.
         if (namePattern.hasMatch(upperCaseLine) && extractedName == null && extractedNric != null) {
             extractedName = originalLine;
             continue;
@@ -52,7 +49,6 @@ class OcrService {
         
     }
 
-    // Ensure we found at least the critical data
     if (extractedNric == null || extractedName == null) {
       return null;
     }
@@ -60,8 +56,8 @@ class OcrService {
     return {
       'nric': extractedNric,
       'name': extractedName,
-      'gender': extractedGender,      // Return the detected gender
-      'religion': extractedReligion,  // Return the detected religion
+      'gender': extractedGender,    
+      'religion': extractedReligion, 
     };
   }
 }

@@ -2,7 +2,7 @@ class Product {
   final String id;
   final String name;
   final double price;
-  final int stock; // This is the 'quantity' from the shelf
+  final int stock;
   final String? imageUrl;
   final String? halalStatus;
 

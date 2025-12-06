@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/services/api_service.dart';
 
-// --- MODIFIED: Accept the user map ---
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic> user;
 
@@ -27,8 +26,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'lifetime_spend': 0.0,
   };
 
-  // --- MODIFIED: Declare controllers as 'late' ---
-  // We will initialize them in initState()
   late final TextEditingController _nameController;
   late final TextEditingController _icController;
   late final TextEditingController _phoneController;
@@ -39,20 +36,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _postcodeController;
   late final TextEditingController _stateController;
 
-  // --- NEW: Initialize controllers with user data ---
+
   @override
   void initState() {
     super.initState();
-    // Get the user map passed from the HomeScreen
     final user = widget.user;
-
-    // Handle the "<empty>" string from DynamoDB
     String address2 = user['addressLine2'] ?? '';
     if (address2 == '<empty>') {
       address2 = '';
     }
 
-    // Initialize all controllers with the user's data
     _nameController = TextEditingController(text: user['name'] ?? '');
     _icController = TextEditingController(text: user['icNumber'] ?? '');
     _phoneController = TextEditingController(text: user['phone'] ?? '');
@@ -69,8 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _fetchRewardsData() async {
     try {
-      final api = ApiService(); // Import your ApiService
-      // Assuming user['shp_user_id'] exists. If your map key is different (e.g. 'id'), change it here.
+      final api = ApiService(); 
       final shpUserId = widget.user['shp_user_id'] ?? widget.user['id'] ?? '';
 
       if (shpUserId.isNotEmpty) {
@@ -90,7 +82,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
-    // Clean up all controllers
     _nameController.dispose();
     _icController.dispose();
     _phoneController.dispose();
@@ -103,21 +94,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // --- MODIFIED: Add validation before saving ---
   void _toggleEdit() {
     setState(() {
       if (_isEditing) {
-        // --- User is trying to SAVE ---
-        // First, validate the form
         if (_formKey.currentState!.validate()) {
-          // If valid, stop editing and show success
           _isEditing = false;
-
-          // TODO: In the future, you will call your API here
-          // 1. Show a loading indicator
-          // 2. final success = await _apiService.updateProfile({ ... });
-          // 3. Only set _isEditing = false and show snackbar if success
-
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Profile updated successfully!'),
@@ -125,7 +106,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           );
         } else {
-          // If form is not valid, stay in editing mode
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Please fix the errors in the form.'),
@@ -134,7 +114,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
       } else {
-        // --- User is trying to EDIT ---
         _isEditing = true;
       }
     });
@@ -177,7 +156,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
-                          // Cancel edit mode - reset form
                           _formKey.currentState?.reset();
                           setState(() {
                             _isEditing = false;
@@ -262,7 +240,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SingleChildScrollView(
               child: Column(
                 children: [
-                  // Edit mode banner
                   if (_isEditing) _buildEditModeBanner(),
                   const SizedBox(height: 16),
                   if (_isLoadingPoints)
@@ -276,11 +253,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildPersonalDetailsCard(),
                   const SizedBox(height: 16),
                   _buildContactDetailsCard(),
-                  SizedBox(height: _isEditing ? 100 : 24), // Extra space for floating button
+                  SizedBox(height: _isEditing ? 100 : 24), 
                 ],
               ),
             ),
-            // Floating save button when editing (alternative to top button)
             if (_isEditing)
               Positioned(
                 bottom: 24,
@@ -396,7 +372,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildRewardsCard() {
-    // Determine colors based on tier
     final tier =
         (_rewardsData['loyalty_tier'] ?? 'bronze').toString().toLowerCase();
 
