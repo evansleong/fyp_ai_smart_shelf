@@ -583,4 +583,35 @@ class ApiService {
       return null;
     }
   }
+
+  Future<bool> checkSessionSetupStatus(String shopId, String shelfId) async {
+    try {
+      final uri = Uri.parse('$_awsProdBase/camera/lookup/$shopId/$shelfId');
+      
+      final response = await http.get(
+        uri,
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        
+        // 1. Check if session is active
+        if (body['status'] == 'active' && body['session'] != null) {
+          final session = body['session'];
+          
+          // 2. Check the setup_status flag
+          final setupStatus = session['setup_status'];
+          
+          if (setupStatus == true || setupStatus.toString().toLowerCase() == 'true') {
+            return true; // READY
+          }
+        }
+      }
+      return false; // Not ready yet
+    } catch (e) {
+      print("Polling setup status error: $e");
+      return false; // Treat errors as "not ready" and keep polling
+    }
+  }
 }

@@ -131,12 +131,6 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
 
       _shopId = shopId;
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Starting shelf for shop $shopId…')),
-        );
-      }
-
       final String sessionUuid = const Uuid().v4();
       final String? customerId = user['shp_user_id']?.toString();
 
@@ -146,6 +140,31 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         sessionId: sessionUuid,
         customerId: customerId,
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verifying shelf setup... please wait.')),
+        );
+      }
+
+      bool isShelfReady = false;
+      int retryCount = 0;
+      const int maxRetries = 60;
+
+      while (!isShelfReady && retryCount < maxRetries) {
+        // Wait 1 second between checks
+        await Future.delayed(const Duration(seconds: 1));
+        
+        // Check API
+        isShelfReady = await _apiService.checkSessionSetupStatus(shopId, widget.shelfId);
+        
+        retryCount++;
+        print("Polling setup status: $isShelfReady ($retryCount/$maxRetries)");
+      }
+
+      if (!isShelfReady) {
+        throw Exception("Shelf setup timed out. Please try again.");
+      }
 
       if (mounted) {
         setState(() {
