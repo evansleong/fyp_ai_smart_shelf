@@ -142,16 +142,20 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
           shelfId: widget.shelfId,
         );
 
-        // If session is not active, end the shopping session
-        if (sessionStatus != null && sessionStatus['status'] != 'active') {
+        // Debug: print what we received
+        final status = sessionStatus?['status'];
+        print('[SessionCheck] status=$status');
+
+        // End session if no session exists or explicitly stopped
+        // After Lambda fix: 'inactive' means no session, 'onHold' means paused
+        if (status == 'inactive' || status == 'stopped' || status == 'ended') {
+          print('[SessionCheck] Ending session due to status: $status');
           timer.cancel();
           _handleSessionEnded();
         }
       } catch (e) {
-        // If check fails (e.g., session not found), end the session
-        print('Session check failed: $e');
-        timer.cancel();
-        _handleSessionEnded();
+        // Don't end session on API errors - just log and continue polling
+        print('[SessionCheck] API error (ignoring): $e');
       }
     });
   }
