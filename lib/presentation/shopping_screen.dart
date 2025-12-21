@@ -104,11 +104,13 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
                   setState(() {
                     _cart = Cart.fromJson(data);
                   });
+                  // Refresh products to update stock quantities in real-time
+                  _fetchShelfProducts();
                 }
               }
               // Handle session stop (forced end from Lambda)
-              else if (message['type'] == 'session.stop' || 
-                       message['type'] == 'session_stop') {
+              else if (message['type'] == 'session.stop' ||
+                  message['type'] == 'session_stop') {
                 _handleSessionEnded();
               }
             }
@@ -118,7 +120,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       // Optional: react to disconnects if you want UI feedback later
       _wsUnsubs.add(webSocketService.on('disconnect', (_) {}));
       _wsUnsubs.add(webSocketService.on('connect', (_) {}));
-      
+
       // Start periodic session check (fallback if WebSocket message fails)
       _startSessionCheck();
     }
@@ -126,19 +128,20 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
 
   void _startSessionCheck() {
     // Check session status every 5 seconds
-    _sessionCheckTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    _sessionCheckTimer =
+        Timer.periodic(const Duration(seconds: 5), (timer) async {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       try {
         // Check if session is still active
         final sessionStatus = await _apiService.checkSessionStatus(
           shopId: widget.shopId,
           shelfId: widget.shelfId,
         );
-        
+
         // If session is not active, end the shopping session
         if (sessionStatus != null && sessionStatus['status'] != 'active') {
           timer.cancel();
@@ -155,7 +158,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
 
   void _handleSessionEnded() {
     if (!mounted) return;
-    
+
     // Show notification
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -164,7 +167,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         duration: Duration(seconds: 2),
       ),
     );
-    
+
     // Clean up WebSocket
     try {
       webSocketService.send({
@@ -174,11 +177,11 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         'shelf_id': widget.shelfId,
       });
     } catch (_) {}
-    
+
     try {
       webSocketService.disconnect();
     } catch (_) {}
-    
+
     // Navigate back
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
