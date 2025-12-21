@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'presentation/welcome_screen.dart';
 import 'presentation/auth_check_screen.dart';
-import 'presentation/home_screen.dart'; 
+import 'presentation/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  Stripe.publishableKey = 'pk_test_51SMnPjL3udY1rZ0BeDfsXlD620aOBandMMYRwwM3XgP2rIpHP3UoohZvmU4jEuq8SJXz2qNfjsFvHExcjNeEyuyF00oY5jD2Wu';
+  Stripe.publishableKey =
+      'pk_test_51SMnPjL3udY1rZ0BeDfsXlD620aOBandMMYRwwM3XgP2rIpHP3UoohZvmU4jEuq8SJXz2qNfjsFvHExcjNeEyuyF00oY5jD2Wu';
   await Stripe.instance.applySettings();
 
   runApp(const MyApp());
@@ -36,13 +37,14 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6366F1)),
       ),
       navigatorObservers: [routeObserver],
       home: const AuthCheckScreen(),
     );
   }
 }
+
 // The original counter page is kept below for reference, but unused.
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -63,32 +65,22 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
- 
-
   @override
   Widget build(BuildContext context) {
-    
     return Scaffold(
       appBar: AppBar(
-       
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        
         title: Text(widget.title),
       ),
       body: Center(
-        
         child: Column(
-
- 
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             const Text('You have pushed the button this many times:'),
-            
           ],
         ),
       ),
-       // This trailing comma makes auto-formatting nicer for build methods.
+      // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
-

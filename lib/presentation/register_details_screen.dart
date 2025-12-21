@@ -364,8 +364,8 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
 
   @override
   Widget build(BuildContext context) {
-    final hasData = _nameController.text.isNotEmpty &&
-        _icController.text.isNotEmpty;
+    final hasData =
+        _nameController.text.isNotEmpty && _icController.text.isNotEmpty;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20.0),
@@ -436,14 +436,18 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
                       gradient: LinearGradient(
                         colors: [
                           Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                          Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.8),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: Theme.of(context)
-                              .colorScheme.primary
+                              .colorScheme
+                              .primary
                               .withOpacity(0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
@@ -515,7 +519,8 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
                               colors: [
                                 Theme.of(context).colorScheme.primary,
                                 Theme.of(context)
-                                    .colorScheme.primary
+                                    .colorScheme
+                                    .primary
                                     .withOpacity(0.7),
                               ],
                             ),
@@ -571,9 +576,8 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context)
-                        .colorScheme.primary
-                        .withOpacity(0.3),
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -615,6 +619,46 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
                       ),
               ),
             ),
+          // ---------------------------------------------------------
+          // 👇 THIS IS DEBUG BUTTON
+          // ---------------------------------------------------------
+          const SizedBox(height: 40),
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                // 1. Fill dummy data so app doesn't crash later
+                setState(() {
+                  _nameController.text = "Debug User";
+                  _icController.text = "900101-14-1234";
+                  _genderController.text = "Male";
+                  _religionController.text = "Other";
+                });
+
+                widget.onDetailsScanned({
+                  'name': "Debug User",
+                  'icNumber': "900101-14-1234",
+                  'gender': "Male",
+                  'religion': "Other",
+                });
+
+                // 2. Force navigate to next step
+                if (widget.onNext != null) {
+                  widget.onNext!();
+                }
+              },
+              icon: const Icon(Icons.bug_report, color: Colors.red),
+              label: const Text(
+                "DEBUG: SKIP TO CONTACT",
+                style:
+                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              ),
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.1),
+                padding: const EdgeInsets.all(12),
+              ),
+            ),
+          ),
+          // ---------------------------------------------------------
         ],
       ),
     );
@@ -690,6 +734,25 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
   final TextEditingController _postcodeController = TextEditingController();
   final TextEditingController _stateController = TextEditingController();
 
+  final List<String> _malaysiaStates = [
+    'Johor',
+    'Kedah',
+    'Kelantan',
+    'Melaka',
+    'Negeri Sembilan',
+    'Pahang',
+    'Perak',
+    'Perlis',
+    'Pulau Pinang',
+    'Sabah',
+    'Sarawak',
+    'Selangor',
+    'Terengganu',
+    'Kuala Lumpur',
+    'Labuan',
+    'Putrajaya',
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -699,9 +762,16 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
   void _loadExistingData() {
     if (widget.contactDetails.isNotEmpty) {
       _emailController.text = widget.contactDetails['email'] ?? '';
-      _phoneController.text = widget.contactDetails['phone'] ?? '';
-      _addressLine1Controller.text = widget.contactDetails['addressLine1'] ?? '';
-      _addressLine2Controller.text = widget.contactDetails['addressLine2'] ?? '';
+      String rawPhone = widget.contactDetails['phone'] ?? '';
+      if (rawPhone.startsWith('0')) {
+        _phoneController.text = rawPhone.substring(1);
+      } else {
+        _phoneController.text = rawPhone;
+      }
+      _addressLine1Controller.text =
+          widget.contactDetails['addressLine1'] ?? '';
+      _addressLine2Controller.text =
+          widget.contactDetails['addressLine2'] ?? '';
       _postcodeController.text = widget.contactDetails['postcode'] ?? '';
       _stateController.text = widget.contactDetails['state'] ?? '';
     }
@@ -719,9 +789,12 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
   }
 
   void _updateDetails() {
+    String rawPhone = _phoneController.text;
+    String formattedPhone = rawPhone.isNotEmpty ? '0$rawPhone' : '';
+
     widget.onDetailsUpdated({
       'email': _emailController.text,
-      'phone': _phoneController.text,
+      'phone': formattedPhone,
       'addressLine1': _addressLine1Controller.text,
       'addressLine2': _addressLine2Controller.text,
       'postcode': _postcodeController.text,
@@ -792,7 +865,10 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                       gradient: LinearGradient(
                         colors: [
                           Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                          Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.7),
                         ],
                       ),
                       shape: BoxShape.circle,
@@ -856,7 +932,8 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                               colors: [
                                 Theme.of(context).colorScheme.primary,
                                 Theme.of(context)
-                                    .colorScheme.primary
+                                    .colorScheme
+                                    .primary
                                     .withOpacity(0.7),
                               ],
                             ),
@@ -885,11 +962,46 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                       controller: _phoneController,
                       decoration: inputDecoration.copyWith(
                         labelText: 'Phone Number',
-                        prefixIcon: const Icon(Icons.phone_outlined),
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.only(left: 16, right: 8),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.phone_outlined, size: 20),
+                              const SizedBox(width: 8),
+                              Text("+60",
+                                  style: TextStyle(
+                                      color: Colors.grey.shade700,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w500)),
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                height: 24,
+                                width: 1,
+                                color: Colors.grey.shade300,
+                              )
+                            ],
+                          ),
+                        ),
                       ),
-                      keyboardType: TextInputType.phone,
-                      validator: (value) =>
-                          value!.isEmpty ? 'Please enter a phone number' : null,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(
+                            10), // Limit to 10 digits
+                      ],
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a phone number';
+                        }
+                        if (value.startsWith('0')) {
+                          return 'Please do not start with 0';
+                        }
+                        if (value.length < 9) {
+                          return 'Number too short';
+                        }
+                        return null;
+                      },
                       onChanged: (_) => _updateDetails(),
                     ),
                     const SizedBox(height: 16),
@@ -905,8 +1017,9 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your email';
                         }
-                        if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                            .hasMatch(value)) {
+                        final emailRegex = RegExp(
+                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                        if (!emailRegex.hasMatch(value)) {
                           return 'Please enter a valid email address';
                         }
                         return null;
@@ -918,7 +1031,6 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                       controller: _addressLine1Controller,
                       decoration: inputDecoration.copyWith(
                         labelText: 'Address Line 1',
-                        prefixIcon: const Icon(Icons.home_work_outlined),
                       ),
                       validator: (value) =>
                           value!.isEmpty ? 'Please enter Address Line 1' : null,
@@ -929,7 +1041,6 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                       controller: _addressLine2Controller,
                       decoration: inputDecoration.copyWith(
                         labelText: 'Address Line 2 (Optional)',
-                        prefixIcon: const Icon(Icons.add_road_outlined),
                       ),
                       onChanged: (_) => _updateDetails(),
                     ),
@@ -941,27 +1052,64 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                             controller: _postcodeController,
                             decoration: inputDecoration.copyWith(
                               labelText: 'Postcode',
-                              prefixIcon:
-                                  const Icon(Icons.markunread_mailbox_outlined),
                             ),
                             keyboardType: TextInputType.number,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            validator: (value) =>
-                                value!.isEmpty ? 'Required' : null,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              LengthLimitingTextInputFormatter(5),
+                            ],
+                            validator: (value) {
+                              if (value == null || value.isEmpty)
+                                return 'Required';
+                              if (value.length != 5) return 'Must be 5 digits';
+                              return null;
+                            },
                             onChanged: (_) => _updateDetails(),
                           ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
-                          child: TextFormField(
-                            controller: _stateController,
+                          child: DropdownButtonFormField<String>(
+                            initialValue:
+                                _malaysiaStates.contains(_stateController.text)
+                                    ? _stateController.text
+                                    : null,
+                            isExpanded: true,
+                            dropdownColor: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            elevation: 4, // Soft shadow
+
+                            icon: Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 24,
+                            ),
                             decoration: inputDecoration.copyWith(
                               labelText: 'State',
-                              prefixIcon: const Icon(Icons.location_city_outlined),
                             ),
-                            validator: (value) =>
-                                value!.isEmpty ? 'Required' : null,
-                            onChanged: (_) => _updateDetails(),
+                            menuMaxHeight: 300,
+                            items: _malaysiaStates.map((String state) {
+                              return DropdownMenuItem<String>(
+                                value: state,
+                                child: Text(
+                                  state,
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black87),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                _stateController.text = newValue ?? '';
+                              });
+                              _updateDetails();
+                            },
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Required'
+                                : null,
                           ),
                         ),
                       ],
@@ -1017,14 +1165,18 @@ class _ContactDetailsStepState extends State<_ContactDetailsStep> {
                       gradient: LinearGradient(
                         colors: [
                           Theme.of(context).colorScheme.primary,
-                          Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                          Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.8),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: Theme.of(context)
-                              .colorScheme.primary
+                              .colorScheme
+                              .primary
                               .withOpacity(0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
@@ -1127,7 +1279,7 @@ class _FaceCaptureStepState extends State<_FaceCaptureStep> {
       });
 
       _showSuccessSnackBar('Face captured and uploaded!');
-      
+
       // Automatically proceed to registration after successful upload
       _submitRegistration();
     } catch (e) {
@@ -1165,7 +1317,7 @@ class _FaceCaptureStepState extends State<_FaceCaptureStep> {
 
       if (!mounted) return;
       _showSuccessSnackBar('Registration Successful!');
-      
+
       // Pop ALL screens back to the first screen (e.g., login)
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
@@ -1297,7 +1449,8 @@ class _FaceCaptureStepState extends State<_FaceCaptureStep> {
                             colors: [
                               Theme.of(context).colorScheme.primary,
                               Theme.of(context)
-                                  .colorScheme.primary
+                                  .colorScheme
+                                  .primary
                                   .withOpacity(0.7),
                             ],
                           ),
@@ -1390,7 +1543,8 @@ class _FaceCaptureStepState extends State<_FaceCaptureStep> {
                     boxShadow: [
                       BoxShadow(
                         color: Theme.of(context)
-                            .colorScheme.primary
+                            .colorScheme
+                            .primary
                             .withOpacity(0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
@@ -1398,9 +1552,10 @@ class _FaceCaptureStepState extends State<_FaceCaptureStep> {
                     ],
                   ),
                   child: FilledButton(
-                    onPressed: (_isCapturing || _isUploadingFace || _isRegistering)
-                        ? null
-                        : _startFaceScan,
+                    onPressed:
+                        (_isCapturing || _isUploadingFace || _isRegistering)
+                            ? null
+                            : _startFaceScan,
                     style: FilledButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       foregroundColor: Colors.white,

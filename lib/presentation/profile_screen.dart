@@ -17,14 +17,33 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isEditing = false;
-
   bool _isLoadingPoints = true;
+  bool _isLoadingProfile = true;
+  bool _isSaving = false;
   Map<String, dynamic> _rewardsData = {
     'total_points': 0,
     'available_points': 0,
     'loyalty_tier': 'bronze',
     'lifetime_spend': 0.0,
   };
+  final List<String> _malaysiaStates = [
+    'Johor',
+    'Kedah',
+    'Kelantan',
+    'Melaka',
+    'Negeri Sembilan',
+    'Pahang',
+    'Perak',
+    'Perlis',
+    'Pulau Pinang',
+    'Sabah',
+    'Sarawak',
+    'Selangor',
+    'Terengganu',
+    'Kuala Lumpur',
+    'Labuan',
+    'Putrajaya',
+  ];
 
   late final TextEditingController _nameController;
   late final TextEditingController _icController;
@@ -36,19 +55,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final TextEditingController _postcodeController;
   late final TextEditingController _stateController;
 
-
   @override
   void initState() {
     super.initState();
-    final user = widget.user;
+    _initializeControllers(widget.user);
+    _fetchLatestProfileData();
+    _fetchRewardsData();
+  }
+
+  void _initializeControllers(Map<String, dynamic> user) {
     String address2 = user['addressLine2'] ?? '';
-    if (address2 == '<empty>') {
-      address2 = '';
+    if (address2 == '<empty>') address2 = '';
+
+    String rawPhone = user['phone'] ?? '';
+    if (rawPhone.startsWith('0')) {
+      rawPhone = rawPhone.substring(1);
     }
 
+    // Initialize controllers safely
     _nameController = TextEditingController(text: user['name'] ?? '');
     _icController = TextEditingController(text: user['icNumber'] ?? '');
-    _phoneController = TextEditingController(text: user['phone'] ?? '');
+    _phoneController = TextEditingController(text: rawPhone);
     _genderController = TextEditingController(text: user['gender'] ?? '');
     _religionController = TextEditingController(text: user['religion'] ?? '');
     _addressLine1Controller =
@@ -56,13 +83,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _addressLine2Controller = TextEditingController(text: address2);
     _postcodeController = TextEditingController(text: user['postcode'] ?? '');
     _stateController = TextEditingController(text: user['state'] ?? '');
+  }
 
-    _fetchRewardsData();
+  Future<void> _fetchLatestProfileData() async {
+    try {
+      final api = ApiService();
+      final shpUserId = widget.user['shp_user_id'] ?? widget.user['id'] ?? '';
+
+      if (shpUserId.isNotEmpty) {
+        final freshData = await api.getShopperInfo(shpUserId: shpUserId);
+
+        if (freshData != null && mounted) {
+          setState(() {
+            String rawPhone = freshData['phone'] ?? '';
+            if (rawPhone.startsWith('0')) {
+              _phoneController.text = rawPhone.substring(1);
+            } else {
+              _phoneController.text = rawPhone;
+            }
+            _addressLine1Controller.text = freshData['addressLine1'] ?? '';
+
+            String addr2 = freshData['addressLine2'] ?? '';
+            _addressLine2Controller.text = (addr2 == '<empty>') ? '' : addr2;
+            _postcodeController.text = freshData['postcode'] ?? '';
+            _stateController.text = freshData['state'] ?? '';
+            _nameController.text = freshData['name'] ?? '';
+            _icController.text = freshData['icNumber'] ?? '';
+          });
+        }
+      }
+    } catch (e) {
+      print("Error fetching latest profile: $e");
+    }
   }
 
   Future<void> _fetchRewardsData() async {
     try {
-      final api = ApiService(); 
+      final api = ApiService();
       final shpUserId = widget.user['shp_user_id'] ?? widget.user['id'] ?? '';
 
       if (shpUserId.isNotEmpty) {
@@ -94,25 +151,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _saveChanges() async {
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fix the errors in the form.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final api = ApiService();
+      String rawPhone = _phoneController.text.trim();
+      String formattedPhone = rawPhone.isNotEmpty ? '0$rawPhone' : '';
+      final updatePayload = {
+        'shp_user_id': widget.user['shp_user_id'] ?? widget.user['id'],
+        'phone': formattedPhone,
+        'addressLine1': _addressLine1Controller.text.trim(),
+        'addressLine2': _addressLine2Controller.text.trim().isEmpty
+            ? '<empty>'
+            : _addressLine2Controller.text.trim(),
+        'postcode': _postcodeController.text.trim(),
+        'state': _stateController.text.trim(),
+      };
+
+      await api.updateShopperProfile(updatePayload);
+      await _fetchLatestProfileData();
+
+      if (mounted) {
+        setState(() {
+          _isEditing = false;
+          _isSaving = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully!'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Update failed: ${e.toString().replaceAll('Exception:', '')}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   void _toggleEdit() {
     setState(() {
       if (_isEditing) {
-        if (_formKey.currentState!.validate()) {
-          _isEditing = false;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Profile updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please fix the errors in the form.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        _saveChanges();
       } else {
         _isEditing = true;
       }
@@ -137,101 +243,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
         iconTheme: const IconThemeData(color: Color(0xFF1E293B)),
-        actions: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: _isEditing
-                ? Container(
-                    key: const ValueKey('cancel'),
-                    margin: const EdgeInsets.only(right: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          _formKey.currentState?.reset();
-                          setState(() {
-                            _isEditing = false;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.close_rounded,
-                                size: 20,
-                                color: Colors.grey.shade700,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Cancel',
-                                style: TextStyle(
-                                  color: Colors.grey.shade700,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : Container(
-                    key: const ValueKey('edit'),
-                    margin: const EdgeInsets.only(right: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFF6366F1).withOpacity(0.3),
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _toggleEdit,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.edit_note_rounded,
-                                size: 20,
-                                color: Color(0xFF6366F1),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'Edit Profile',
-                                style: TextStyle(
-                                  color: Color(0xFF6366F1),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 15,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-          ),
-        ],
       ),
       body: Form(
         key: _formKey,
@@ -253,7 +264,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _buildPersonalDetailsCard(),
                   const SizedBox(height: 16),
                   _buildContactDetailsCard(),
-                  SizedBox(height: _isEditing ? 100 : 24), 
+                  SizedBox(height: _isEditing ? 100 : 24),
                 ],
               ),
             ),
@@ -625,10 +636,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   value.isEmpty ? 'Not provided' : value,
                   style: TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     color: value.isEmpty
-                        ? Colors.grey.shade400
-                        : const Color(0xFF1E293B),
+                        ? Colors.grey.shade300
+                        : const Color(0xFF1E293B)
+                            .withOpacity(0.6), // Low opacity
                     letterSpacing: -0.3,
                   ),
                 ),
@@ -641,6 +653,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildContactDetailsCard() {
+    // Shared Input Decoration Style
+    final inputDecoration = InputDecoration(
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(
+          color: Color(0xFF6366F1), // Primary Color
+          width: 1.5, // slightly thinner for elegance
+        ),
+      ),
+      disabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      filled: true,
+      fillColor:
+          _isEditing ? Colors.white : Colors.grey.shade50.withOpacity(0.5),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      labelStyle: TextStyle(
+        color: _isEditing ? const Color(0xFF6366F1) : Colors.grey.shade600,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
@@ -651,7 +694,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             color: Colors.black.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
-            spreadRadius: 0,
           ),
         ],
       ),
@@ -660,93 +702,253 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Header
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF6366F1).withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.phone_outlined,
-                    color: Colors.white,
-                    size: 22,
-                  ),
+                      child: const Icon(
+                        Icons.phone_outlined,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Contact Information',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Contact Information',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF1E293B),
-                    letterSpacing: -0.5,
-                  ),
-                ),
+                // Edit Button inside Contact Info
+                _isEditing
+                    ? InkWell(
+                        onTap: () {
+                          _formKey.currentState?.reset();
+                          setState(() {
+                            _isEditing = false;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      )
+                    : InkWell(
+                        onTap: _toggleEdit,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF6366F1).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.edit_rounded,
+                                size: 16,
+                                color: Color(0xFF6366F1),
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Edit',
+                                style: TextStyle(
+                                  color: Color(0xFF6366F1),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
               ],
             ),
             const SizedBox(height: 24),
-            // Phone Number
-            _buildModernTextField(
+
+            // --- Phone Field (+60 Prefix) ---
+            TextFormField(
               controller: _phoneController,
-              label: 'Phone Number',
-              icon: Icons.phone_outlined,
-              keyboardType: TextInputType.phone,
-              validator: (value) =>
-                  value!.isEmpty ? 'Please enter a phone number' : null,
-              isEditing: _isEditing,
-            ),
-            const SizedBox(height: 20),
-            // Address Line 1
-            _buildModernTextField(
-              controller: _addressLine1Controller,
-              label: 'Address Line 1',
-              icon: Icons.home_work_outlined,
-              validator: (value) =>
-                  value!.isEmpty ? 'Please enter Address Line 1' : null,
-              isEditing: _isEditing,
-            ),
-            const SizedBox(height: 20),
-            // Address Line 2 (Optional)
-            _buildModernTextField(
-              controller: _addressLine2Controller,
-              label: 'Address Line 2 (Optional)',
-              icon: Icons.add_road_outlined,
-              isEditing: _isEditing,
-            ),
-            const SizedBox(height: 20),
-            // Postcode and State Row
-            Row(
-              children: [
-                Expanded(
-                  child: _buildModernTextField(
-                    controller: _postcodeController,
-                    label: 'Postcode',
-                    icon: Icons.markunread_mailbox_outlined,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    validator: (value) => value!.isEmpty ? 'Required' : null,
-                    isEditing: _isEditing,
+              enabled: _isEditing,
+              decoration: inputDecoration.copyWith(
+                labelText: 'Phone Number',
+                prefixIcon: Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "+60",
+                        style: TextStyle(
+                          color: _isEditing
+                              ? Colors.grey.shade700
+                              : Colors.grey.shade500,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        height: 24,
+                        width: 1,
+                        color: Colors.grey.shade300,
+                      )
+                    ],
                   ),
                 ),
-                const SizedBox(width: 16),
+              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(10),
+              ],
+              validator: (value) {
+                if (value == null || value.isEmpty) return 'Required';
+                if (value.startsWith('0')) return 'Do not include leading 0';
+                if (value.length < 9) return 'Invalid length';
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+
+            // --- Address Line 1 ---
+            TextFormField(
+              controller: _addressLine1Controller,
+              enabled: _isEditing,
+              decoration: inputDecoration.copyWith(
+                labelText: 'Address Line 1',
+              ),
+              validator: (value) =>
+                  value!.isEmpty ? 'Please enter Address Line 1' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // --- Address Line 2 ---
+            TextFormField(
+              controller: _addressLine2Controller,
+              enabled: _isEditing,
+              decoration: inputDecoration.copyWith(
+                labelText: 'Address Line 2 (Optional)',
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // --- Postcode & State Row ---
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Postcode
                 Expanded(
-                  child: _buildModernTextField(
-                    controller: _stateController,
-                    label: 'State',
-                    icon: Icons.location_city_outlined,
-                    validator: (value) => value!.isEmpty ? 'Required' : null,
-                    isEditing: _isEditing,
+                  flex: 4,
+                  child: TextFormField(
+                    controller: _postcodeController,
+                    enabled: _isEditing,
+                    decoration: inputDecoration.copyWith(
+                      labelText: 'Postcode',
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 16),
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(5),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return 'Required';
+                      if (value.length != 5) return '5 digits';
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // State Dropdown
+                Expanded(
+                  flex: 6,
+                  child: IgnorePointer(
+                    ignoring: !_isEditing, // Disable interaction if not editing
+                    child: DropdownButtonFormField<String>(
+                      // Use initialValue mechanism
+                      value: _malaysiaStates.contains(_stateController.text)
+                          ? _stateController.text
+                          : null,
+
+                      isExpanded: true,
+
+                      // Style when disabled (not editing) vs enabled
+                      decoration: inputDecoration.copyWith(
+                        labelText: 'State',
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 16),
+                        fillColor:
+                            _isEditing ? Colors.white : Colors.grey.shade50,
+                      ),
+
+                      // Modern Styling
+                      icon: _isEditing
+                          ? const Icon(Icons.keyboard_arrow_down_rounded,
+                              color: Color(0xFF6366F1))
+                          : const SizedBox(), // Hide arrow when read-only
+
+                      dropdownColor: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      menuMaxHeight: 350,
+
+                      items: _malaysiaStates.map((String state) {
+                        return DropdownMenuItem<String>(
+                          value: state,
+                          child: Text(
+                            state,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF1E293B),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      }).toList(),
+
+                      onChanged: _isEditing
+                          ? (String? newValue) {
+                              setState(() {
+                                _stateController.text = newValue ?? '';
+                              });
+                            }
+                          : null, // Disable logic
+
+                      validator: (value) =>
+                          value == null || value.isEmpty ? 'Required' : null,
+                    ),
                   ),
                 ),
               ],
@@ -783,9 +985,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Icon(
                 icon,
                 size: 16,
-                color: isEditing
-                    ? const Color(0xFF6366F1)
-                    : Colors.grey.shade500,
+                color:
+                    isEditing ? const Color(0xFF6366F1) : Colors.grey.shade500,
               ),
             ),
             const SizedBox(width: 8),
@@ -794,9 +995,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: isEditing 
-                    ? const Color(0xFF6366F1)
-                    : Colors.grey.shade500,
+                color:
+                    isEditing ? const Color(0xFF6366F1) : Colors.grey.shade500,
               ),
             ),
           ],
@@ -805,9 +1005,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
-            color: isEditing 
-                ? Colors.white 
-                : Colors.grey.shade50,
+            color: isEditing ? Colors.white : Colors.grey.shade50,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isEditing
@@ -835,9 +1033,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w500,
-              color: isEditing
-                  ? const Color(0xFF1E293B)
-                  : Colors.grey.shade600,
+              color: isEditing ? const Color(0xFF1E293B) : Colors.grey.shade600,
             ),
             decoration: InputDecoration(
               border: InputBorder.none,
@@ -945,8 +1141,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildFloatingSaveButton() {
     return Container(
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+        gradient: LinearGradient(
+          colors: _isSaving
+              ? [Colors.grey.shade400, Colors.grey.shade500]
+              : [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -963,22 +1161,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: _toggleEdit,
+          onTap: _isSaving ? null : _toggleEdit, // Disable tap while saving
           borderRadius: BorderRadius.circular(20),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.check_circle_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
+                if (_isSaving)
+                  const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Save All Changes',
-                  style: TextStyle(
+                Text(
+                  _isSaving ? 'Saving...' : 'Save All Changes',
+                  style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 16,

@@ -14,8 +14,7 @@ class ApiService {
   /// 1. Create a Liveness Session (Calls Lambda -> AWS Rekognition Tokyo)
   Future<String> createLivenessSession() async {
     final response = await http.get(
-      Uri.parse(
-          '$_baseUrl/create-session'),
+      Uri.parse('$_baseUrl/create-session'),
       headers: {'Accept': 'application/json'},
     );
 
@@ -37,14 +36,12 @@ class ApiService {
     String action = 'login',
   }) async {
     final response = await http.post(
-      Uri.parse(
-          '$_baseUrl/search-face'),
+      Uri.parse('$_baseUrl/search-face'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'sessionId': sessionId,
         'shelfId': shelfId,
-        'action':
-            action,
+        'action': action,
       }),
     );
 
@@ -166,7 +163,6 @@ class ApiService {
   /// Returns the decoded user map on success.
   Future<Map<String, dynamic>> verifyFace(String imageBase64,
       {String action = 'login', String? shelfId}) async {
-
     // Create the request body
     final Map<String, dynamic> body = {
       'imageBase64': imageBase64,
@@ -323,6 +319,35 @@ class ApiService {
     }
   }
 
+  Future<void> updateShopperProfile(Map<String, dynamic> updateData) async {
+    if (!updateData.containsKey('shp_user_id')) {
+      throw Exception('User ID is missing for update.');
+    }
+
+    final uri = Uri.parse('$_baseUrl/update-user');
+
+    try {
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(updateData),
+      );
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return; // Success
+      } else {
+        throw Exception(responseBody['error'] ?? 'Failed to update profile.');
+      }
+    } catch (e) {
+      throw Exception('Network error updating profile: $e');
+    }
+  }
+
   /// Fetches a list of formatted orders for a specific customer.
   /// Throws an exception if the network call fails.
   Future<List<dynamic>> getCustomerOrders(String customerId) async {
@@ -369,10 +394,7 @@ class ApiService {
   Future<List<dynamic>> getPointsHistory(String shpUserId) async {
     try {
       final uri = Uri.parse('$_baseUrl/rewards/history').replace(
-        queryParameters: {
-          'shp_user_id': shpUserId,
-          'limit': '100'
-        },
+        queryParameters: {'shp_user_id': shpUserId, 'limit': '100'},
       );
 
       final response =
@@ -570,7 +592,7 @@ class ApiService {
         uri,
         headers: {'Accept': 'application/json'},
       ).timeout(const Duration(seconds: 5));
-      
+
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body);
         return body as Map<String, dynamic>;
@@ -587,7 +609,7 @@ class ApiService {
   Future<bool> checkSessionSetupStatus(String shopId, String shelfId) async {
     try {
       final uri = Uri.parse('$_awsProdBase/camera/lookup/$shopId/$shelfId');
-      
+
       final response = await http.get(
         uri,
         headers: {'Accept': 'application/json'},
@@ -595,15 +617,16 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
-        
+
         // 1. Check if session is active
         if (body['status'] == 'active' && body['session'] != null) {
           final session = body['session'];
-          
+
           // 2. Check the setup_status flag
           final setupStatus = session['setup_status'];
-          
-          if (setupStatus == true || setupStatus.toString().toLowerCase() == 'true') {
+
+          if (setupStatus == true ||
+              setupStatus.toString().toLowerCase() == 'true') {
             return true; // READY
           }
         }
