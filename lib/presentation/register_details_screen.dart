@@ -619,46 +619,12 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
                       ),
               ),
             ),
-          // ---------------------------------------------------------
-          // 👇 THIS IS DEBUG BUTTON
-          // ---------------------------------------------------------
           const SizedBox(height: 40),
           Center(
             child: TextButton.icon(
               onPressed: () {
                 // 1. Fill dummy data so app doesn't crash later
                 setState(() {
-                  _nameController.text = "Debug User";
-                  _icController.text = "900101-14-1234";
-                  _genderController.text = "Male";
-                  _religionController.text = "Other";
-                });
-
-                widget.onDetailsScanned({
-                  'name': "Debug User",
-                  'icNumber': "900101-14-1234",
-                  'gender': "Male",
-                  'religion': "Other",
-                });
-
-                // 2. Force navigate to next step
-                if (widget.onNext != null) {
-                  widget.onNext!();
-                }
-              },
-              icon: const Icon(Icons.bug_report, color: Colors.red),
-              label: const Text(
-                "DEBUG: SKIP TO CONTACT",
-                style:
-                    TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-              ),
-              style: TextButton.styleFrom(
-                backgroundColor: Colors.red.withOpacity(0.1),
-                padding: const EdgeInsets.all(12),
-              ),
-            ),
-          ),
-          // ---------------------------------------------------------
         ],
       ),
     );

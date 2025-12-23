@@ -33,7 +33,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
   int _pageIndex = 0;
   late final List<Widget> _pages;
-  final GlobalKey<_HomeScreenBodyState> _homeScreenBodyKey = GlobalKey<_HomeScreenBodyState>();
+  final GlobalKey<_HomeScreenBodyState> _homeScreenBodyKey =
+      GlobalKey<_HomeScreenBodyState>();
 
   Map<String, dynamic>? _userProfileData;
   bool _isLoadingProfile = true;
@@ -206,18 +207,6 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
           ),
         ),
         actions: [
-          // Temporary debug button for RegisterDetailsScreen
-          IconButton(
-            icon: const Icon(Icons.app_registration, color: Colors.orange),
-            tooltip: 'Test Register Details (Debug)',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const RegisterDetailsScreen(),
-                ),
-              );
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: 'Profile',
@@ -247,7 +236,8 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 onTap: _logout,
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -382,11 +372,11 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   double _totalSpent = 0.0; // Total after discount (what user actually paid)
   List<Map<String, dynamic>> _categoryChartData = [];
   String? _transactionError;
-  
+
   // State for recent transactions
   List<Map<String, dynamic>> _recentTransactions = [];
   bool _isLoadingRecentTransactions = true;
-  
+
   // State for AI insights
   Map<String, dynamic>? _aiInsights;
 
@@ -440,26 +430,28 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
     try {
       // Fetch transaction history (simpler format for display)
-      final List<dynamic> transactions = 
+      final List<dynamic> transactions =
           await _apiService.getCustomerOrdersHistory(widget.customerId!);
 
       // Filter out transactions with payment_method == "none"
       final filteredTransactions = transactions.where((transaction) {
-        final paymentMethod = (transaction['payment_method'] ?? 'Card').toString().toLowerCase();
+        final paymentMethod =
+            (transaction['payment_method'] ?? 'Card').toString().toLowerCase();
         return paymentMethod != 'none';
       }).toList();
 
       // Sort by date (most recent first) and take first 3
-      final sortedTransactions = List<Map<String, dynamic>>.from(filteredTransactions);
+      final sortedTransactions =
+          List<Map<String, dynamic>>.from(filteredTransactions);
       sortedTransactions.sort((a, b) {
         try {
           final String aDateStr = a['date'] ?? '';
           final String aTimeStr = a['time'] ?? '';
           final String bDateStr = b['date'] ?? '';
           final String bTimeStr = b['time'] ?? '';
-          
+
           if (aDateStr.isEmpty || bDateStr.isEmpty) return 0;
-          
+
           final inputFormat = DateFormat('yyyy-MM-dd hh:mm a');
           final DateTime aDateTime = inputFormat.parse('$aDateStr $aTimeStr');
           final DateTime bDateTime = inputFormat.parse('$bDateStr $bTimeStr');
@@ -508,18 +500,21 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
       // 1. Fetch Orders
       final List<dynamic> allOrders =
           //await _apiService.getCustomerOrders(testCustomerId);
-      await _apiService.getCustomerOrders(widget.customerId!);
+          await _apiService.getCustomerOrders(widget.customerId!);
 
       // Filter out stolen items (payment_method == "none")
       final List<dynamic> orders = allOrders.where((order) {
-        final paymentMethod = (order['payment_method'] ?? 'Card').toString().toLowerCase();
+        final paymentMethod =
+            (order['payment_method'] ?? 'Card').toString().toLowerCase();
         return paymentMethod != 'none';
       }).toList();
 
       // 2. Process Orders
       final Map<String, double> categorySpend = {};
-      double subtotalSpend = 0.0; // For percentage calculations (before discount)
-      double totalSpendAfterDiscount = 0.0; // For display (after discount, what user actually paid)
+      double subtotalSpend =
+          0.0; // For percentage calculations (before discount)
+      double totalSpendAfterDiscount =
+          0.0; // For display (after discount, what user actually paid)
 
       if (orders.isEmpty) {
         if (mounted) {
@@ -532,55 +527,55 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
         return;
       }
 
-    for (var order in orders) {
-      final List<dynamic> items = order['items'] ?? [];
-      final summary = order['summary'];
+      for (var order in orders) {
+        final List<dynamic> items = order['items'] ?? [];
+        final summary = order['summary'];
 
-      // Helper to parse summary value (handles DynamoDB format)
-      double? parseSummaryValue(dynamic value) {
-        if (value == null) return null;
-        if (value is num) return value.toDouble();
-        if (value is Map && value.containsKey('N')) {
-          return double.tryParse(value['N'].toString());
+        // Helper to parse summary value (handles DynamoDB format)
+        double? parseSummaryValue(dynamic value) {
+          if (value == null) return null;
+          if (value is num) return value.toDouble();
+          if (value is Map && value.containsKey('N')) {
+            return double.tryParse(value['N'].toString());
+          }
+          if (value is String) return double.tryParse(value);
+          return null;
         }
-        if (value is String) return double.tryParse(value);
-        return null;
-      }
 
-      // Get subtotal and total_price from summary
-      double? orderSubtotal;
-      double? orderTotalPrice;
-      if (summary != null) {
-        if (summary['subtotal'] != null) {
-          orderSubtotal = parseSummaryValue(summary['subtotal']);
+        // Get subtotal and total_price from summary
+        double? orderSubtotal;
+        double? orderTotalPrice;
+        if (summary != null) {
+          if (summary['subtotal'] != null) {
+            orderSubtotal = parseSummaryValue(summary['subtotal']);
+          }
+          if (summary['total_price'] != null) {
+            orderTotalPrice = parseSummaryValue(summary['total_price']);
+          }
         }
-        if (summary['total_price'] != null) {
-          orderTotalPrice = parseSummaryValue(summary['total_price']);
+
+        // Calculate category spend from items
+        double orderItemsTotal = 0.0;
+        for (var item in items) {
+          final String category = item['category'] ?? 'Others';
+          final double price = (item['unit_price'] ?? 0.0).toDouble();
+          final int quantity = (item['quantity'] ?? 0).toInt();
+          final double itemTotal = price * quantity;
+          orderItemsTotal += itemTotal;
+
+          categorySpend.update(category, (value) => value + itemTotal,
+              ifAbsent: () => itemTotal);
         }
+
+        // Use subtotal from summary if available (for percentage calculations)
+        // This ensures percentages add up to 100%
+        final orderSubtotalForCalc = orderSubtotal ?? orderItemsTotal;
+        subtotalSpend += orderSubtotalForCalc;
+
+        // Track total price (after discount) for display
+        final orderTotalForDisplay = orderTotalPrice ?? orderSubtotalForCalc;
+        totalSpendAfterDiscount += orderTotalForDisplay;
       }
-
-      // Calculate category spend from items
-      double orderItemsTotal = 0.0;
-      for (var item in items) {
-        final String category = item['category'] ?? 'Others';
-        final double price = (item['unit_price'] ?? 0.0).toDouble();
-        final int quantity = (item['quantity'] ?? 0).toInt();
-        final double itemTotal = price * quantity;
-        orderItemsTotal += itemTotal;
-
-        categorySpend.update(category, (value) => value + itemTotal,
-            ifAbsent: () => itemTotal);
-      }
-
-      // Use subtotal from summary if available (for percentage calculations)
-      // This ensures percentages add up to 100%
-      final orderSubtotalForCalc = orderSubtotal ?? orderItemsTotal;
-      subtotalSpend += orderSubtotalForCalc;
-      
-      // Track total price (after discount) for display
-      final orderTotalForDisplay = orderTotalPrice ?? orderSubtotalForCalc;
-      totalSpendAfterDiscount += orderTotalForDisplay;
-    }
 
       if (subtotalSpend == 0.0 && categorySpend.isNotEmpty) {
         subtotalSpend = categorySpend.values.reduce((a, b) => a + b);
@@ -700,9 +695,7 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                 Row(
                   children: [
                     Text(
-                      widget.isLoadingProfile
-                          ? 'Welcome!'
-                          : 'Welcome back,',
+                      widget.isLoadingProfile ? 'Welcome!' : 'Welcome back,',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             fontWeight: FontWeight.w500,
                             color: const Color(0xFF64748B),
@@ -783,7 +776,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                           gradient: LinearGradient(
                             colors: [
                               Theme.of(context).colorScheme.primary,
-                              Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                              Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.7),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(12),
@@ -801,7 +797,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                           children: [
                             Text(
                               'Overview',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleLarge
+                                  ?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: const Color(0xFF1E293B),
                                     letterSpacing: -0.3,
@@ -816,7 +815,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                                 gradient: LinearGradient(
                                   colors: [
                                     Theme.of(context).colorScheme.primary,
-                                    Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                                    Theme.of(context)
+                                        .colorScheme
+                                        .primary
+                                        .withOpacity(0.5),
                                   ],
                                 ),
                                 borderRadius: BorderRadius.circular(2),
@@ -832,7 +834,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                 // View History Button
                 Container(
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: TextButton.icon(
@@ -859,7 +862,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                       ),
                     ),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
@@ -927,7 +931,9 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
             const SizedBox(height: 24),
 
             // Recent Transactions Section (inside Overview card)
-            if (!_isLoadingTransactions && _transactionError == null && _categoryChartData.isNotEmpty)
+            if (!_isLoadingTransactions &&
+                _transactionError == null &&
+                _categoryChartData.isNotEmpty)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -940,7 +946,10 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                           gradient: LinearGradient(
                             colors: [
                               Theme.of(context).colorScheme.primary,
-                              Theme.of(context).colorScheme.primary.withOpacity(0.5),
+                              Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.5),
                             ],
                           ),
                           borderRadius: BorderRadius.circular(2),
@@ -949,11 +958,12 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                       const SizedBox(width: 12),
                       Text(
                         'Recent Transactions',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF1E293B),
-                              letterSpacing: -0.3,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1E293B),
+                                  letterSpacing: -0.3,
+                                ),
                       ),
                     ],
                   ),
@@ -979,7 +989,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                       ),
                     )
                   else
-                    ..._recentTransactions.map((transaction) => _buildRecentTransactionCard(transaction)),
+                    ..._recentTransactions.map((transaction) =>
+                        _buildRecentTransactionCard(transaction)),
                   const SizedBox(height: 8),
                 ],
               ),
@@ -1147,7 +1158,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: (data['color'] as Color).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -1168,7 +1180,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     );
   }
 
-  void _calculateAIInsights(List<dynamic> orders, Map<String, double> categorySpend, double totalSpend) {
+  void _calculateAIInsights(List<dynamic> orders,
+      Map<String, double> categorySpend, double totalSpend) {
     if (orders.isEmpty) {
       _aiInsights = null;
       return;
@@ -1190,23 +1203,22 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
     for (var order in orders) {
       final dateStr = order['date'] ?? '';
-      final shopName = order['shop_name'] ?? 
-                       order['shopName'] ?? 
-                       order['details'] ?? 
-                       '';
-      
+      final shopName =
+          order['shop_name'] ?? order['shopName'] ?? order['details'] ?? '';
+
       if (dateStr.isNotEmpty) {
         try {
           final date = DateTime.parse(dateStr);
           final dayName = _getDayName(date.weekday);
-          dayOfWeekCount.update(dayName, (value) => value + 1, ifAbsent: () => 1);
+          dayOfWeekCount.update(dayName, (value) => value + 1,
+              ifAbsent: () => 1);
         } catch (e) {
           // Skip invalid dates
         }
       }
-      
-      if (shopName.isNotEmpty && 
-          shopName.toLowerCase() != 'unknown shop' && 
+
+      if (shopName.isNotEmpty &&
+          shopName.toLowerCase() != 'unknown shop' &&
           shopName.toLowerCase() != 'unknown') {
         shopCount.update(shopName, (value) => value + 1, ifAbsent: () => 1);
       }
@@ -1232,7 +1244,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
 
     _aiInsights = {
       'topCategory': topCategory ?? 'N/A',
-      'topCategoryPercentage': totalSpend > 0 ? (topCategorySpend / totalSpend * 100) : 0.0,
+      'topCategoryPercentage':
+          totalSpend > 0 ? (topCategorySpend / totalSpend * 100) : 0.0,
       'favoriteDay': favoriteDay,
       'favoriteShop': favoriteShop,
       'totalTransactions': totalTransactions,
@@ -1242,7 +1255,15 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
   }
 
   String _getDayName(int weekday) {
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday'
+    ];
     return days[weekday - 1];
   }
 
@@ -1251,15 +1272,18 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
     double amount = 0.0;
     if (transaction['summary'] != null &&
         transaction['summary']['total_price'] != null) {
-      amount = double.tryParse(transaction['summary']['total_price'].toString()) ?? 0.0;
+      amount =
+          double.tryParse(transaction['summary']['total_price'].toString()) ??
+              0.0;
     } else if (transaction['amount'] != null) {
       amount = double.tryParse(transaction['amount'].toString()) ?? 0.0;
     }
 
     final String displayAmount = 'RM ${amount.abs().toStringAsFixed(2)}';
     final paymentMethod = transaction['payment_method'] ?? 'Card';
-    final shopName = transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
-    
+    final shopName =
+        transaction['shop_name'] ?? transaction['details'] ?? 'Purchase';
+
     // Date formatting
     final String dateStr = transaction['date']?.toString() ?? '';
     final String timeStr = transaction['time']?.toString() ?? '';
@@ -1356,7 +1380,9 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
                             ),
                           ],
                           Text(
-                            displayTime.isNotEmpty ? displayTime : paymentMethod,
+                            displayTime.isNotEmpty
+                                ? displayTime
+                                : paymentMethod,
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -1532,7 +1558,8 @@ class _HomeScreenBodyState extends State<_HomeScreenBody> {
               icon: Icons.trending_up_outlined,
               title: 'Shopping Stats',
               value: '$totalTransactions transactions',
-              subtitle: 'Avg: RM ${avgTransaction.toStringAsFixed(2)} per visit',
+              subtitle:
+                  'Avg: RM ${avgTransaction.toStringAsFixed(2)} per visit',
               color: const Color(0xFFF59E0B),
             ),
           ],
@@ -1778,9 +1805,11 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    color:
+                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -1795,7 +1824,10 @@ class _AutoScrollCarouselState extends State<_AutoScrollCarousel> {
                       Flexible(
                         child: Text(
                           product['tagline'] as String,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                                 fontWeight: FontWeight.w600,
                                 fontSize: 11,
@@ -1844,7 +1876,7 @@ class _AnimatedWavingHandState extends State<_AnimatedWavingHand>
     // Create a repeating animation that goes from -20 to 20 degrees
     _rotationAnimation = Tween<double>(
       begin: -0.35, // -20 degrees in radians
-      end: 0.35,    // 20 degrees in radians
+      end: 0.35, // 20 degrees in radians
     ).animate(
       CurvedAnimation(
         parent: _controller,

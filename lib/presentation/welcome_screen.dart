@@ -328,8 +328,8 @@ class _ScanQrButton extends StatelessWidget {
         GestureDetector(
           onTap: onScan,
           child: Container(
-            width: 96,
-            height: 96,
+            width: 70,
+            height: 70,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: Theme.of(context).colorScheme.primary,
