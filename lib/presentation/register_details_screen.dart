@@ -619,12 +619,6 @@ class _PersonalDetailsStepState extends State<_PersonalDetailsStep> {
                       ),
               ),
             ),
-          const SizedBox(height: 40),
-          Center(
-            child: TextButton.icon(
-              onPressed: () {
-                // 1. Fill dummy data so app doesn't crash later
-                setState(() {
         ],
       ),
     );
