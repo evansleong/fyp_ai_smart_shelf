@@ -337,6 +337,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         appBar: AppBar(
+          automaticallyImplyLeading: false,
           elevation: 0,
           backgroundColor: Colors.white,
           foregroundColor: Colors.black,

@@ -340,16 +340,7 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
         // TEST
         // TEST
         // TEST
-        // TEST
-        if (!_isVerifying)
-          TextButton.icon(
-            onPressed: _debugForceUnlock,
-            icon: const Icon(Icons.bug_report, color: Colors.red),
-            label: const Text(
-              "DEBUG: FORCE UNLOCK",
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-            ),
-          ),
+       
           // TEST
           // TEST
           // TEST
@@ -358,77 +349,6 @@ class _ShelfVerificationScreenState extends State<ShelfVerificationScreen> {
       ],
     );
   }
-
-  //TEST ONLY
-  //TEST ONLY
-  //TEST ONLY
-  //TEST ONLY
-  //TEST ONLY
-  Future<void> _debugForceUnlock() async {
-    setState(() => _isVerifying = true);
-
-    try {
-      // 1. HARDCODED DATA (From your provided Table - Row 1)
-      const String debugShopId = '3bda9261-977a-498b-9b09-d39e8276e582';
-      const String debugShelfId = '54eebf87-d2b1-41bf-a9e4-ec7427b33bbb';
-
-      // Mock User Profile
-      final Map<String, dynamic> debugUser = {
-        'shp_user_id': '4d99938a-78de-4b49-92ea-91d70cef675f',
-        'name': 'LEONG GAO CHONG',
-        'email': 'admin@debug.com',
-        'phone': '167618273',
-      };
-
-      // 2. Use fetched shop_id if available, otherwise use hardcoded fallback
-      final String actualShopId =
-          _shelfDetails?['shop_id']?.toString() ?? debugShopId;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('DEBUG: Unlocking Shop: $actualShopId...')),
-        );
-      }
-
-      // 3. Trigger IoT Unlock Directly
-      final String sessionUuid = const Uuid().v4();
-
-      await _apiService.awsRemoteStart(
-        shopId: actualShopId,
-        shelfId: widget.shelfId, // or use debugShelfId if testing specifically
-        sessionId: sessionUuid,
-        customerId: debugUser['shp_user_id'],
-      );
-
-      setState(() => _isMonitoring = true);
-
-      // 4. Navigate to Shopping Screen
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          settings: const RouteSettings(name: 'ShoppingScreen'),
-          builder: (_) => ShoppingScreen(
-            shelfId: widget.shelfId,
-            userName: debugUser['name'],
-            shelfName: _shelfDetails?['shelf_name'] ?? 'Shelf 1',
-            shopId: actualShopId,
-            customerId: debugUser['shp_user_id'],
-            userEmail: debugUser['email'],
-            userPhone: debugUser['phone'],
-          ),
-        ),
-      );
-    } catch (e) {
-      _showError('Debug Error: $e');
-    } finally {
-      if (mounted) setState(() => _isVerifying = false);
-    }
-  }
-  //TEST ONLY
-  //TEST ONLY
-  //TEST ONLY
-  //TEST ONLY
-  //TEST ONLY
 }
 
 // --- MODIFIED: _ShelfInfoHeader to display Shop Name ---
